@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import type { Note } from '@/lib/types';
+import { useRouter } from 'next/navigation';
+import type { Note, NoteLink } from '@/lib/types';
 import { allTagColor, kindLabel, noteWhen } from '@/lib/view';
 import { useApp } from './store';
 import { C, HEAD, ICON, Pill, Svg } from './ui';
@@ -8,7 +9,8 @@ import { C, HEAD, ICON, Pill, Svg } from './ui';
 const typeColor = { Task: '#7FB2FF', Event: '#D59CFF' } as const;
 
 export function NoteDetail({ note, onDeleted, compact }: { note: Note; onDeleted?: () => void; compact?: boolean }) {
-  const { state, today, tz, act, openCapture, flash } = useApp();
+  const { state, today, tz, act, openCapture, flash, allTasks } = useApp();
+  const router = useRouter();
   const s = state.settings;
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState('');
@@ -74,11 +76,22 @@ export function NoteDetail({ note, onDeleted, compact }: { note: Note; onDeleted
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing, title, body, tagChoice, note.id, editKey]);
 
-  const linked = new Set(note.links.map((l) => l.label));
+  // Links point at a task/event id; show its current name (it may have been renamed since).
+  const resolve = (l: NoteLink) => {
+    if (l.type === 'Task') {
+      const t = l.id ? allTasks.find((x) => x.id === l.id) : allTasks.find((x) => x.title === l.label); // old links had no id
+      return { label: t?.title ?? l.label, exists: !!t, go: t ? `/tasks?task=${t.id}` : null };
+    }
+    const e = l.id ? state.events.find((x) => x.id === l.id) : state.events.find((x) => x.title === l.label);
+    return { label: e?.title ?? l.label, exists: !!e, go: e ? `/calendar?date=${e.date >= today || !e.repeatDays?.length ? e.date : today}` : null };
+  };
+  const linkedKeys = new Set(note.links.map((l) => `${l.type}:${l.id ?? l.label}`));
   const options = [
     ...state.tasks.filter((t) => !t.done).map((t) => ({ type: 'Task' as const, label: t.title, id: t.id })),
-    ...state.events.filter((e) => e.date >= today).map((e) => ({ type: 'Event' as const, label: e.title, id: e.id }))
-  ].filter((o) => !linked.has(o.label)).slice(0, 30);
+    ...state.events.filter((e) => e.date >= today || e.repeatDays?.length).map((e) => ({ type: 'Event' as const, label: e.title, id: e.id }))
+  ].filter((o) => !linkedKeys.has(`${o.type}:${o.id}`)).slice(0, 30);
+  const ownTask = note.links.map((l) => (l.type === 'Task' && l.id ? allTasks.find((t) => t.id === l.id) : undefined)).find(Boolean);
+  const [making, setMaking] = useState(false);
 
   const color = allTagColor(s, note.tag);
   const btn = { display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 10, border: `1px solid ${C.border2}`, background: 'transparent', color: C.text, fontSize: 13, fontWeight: 600, minHeight: 44 } as const;
@@ -106,9 +119,15 @@ export function NoteDetail({ note, onDeleted, compact }: { note: Note; onDeleted
               <Svg d={ICON.pencil} size={16} sw={2.2} color={C.amber} />Edit{compact ? '' : ` · ${editKey}`}
             </button>
           )}
-          <button type="button" onClick={() => act('PATCH', `/api/notes/${note.id}`, { toTask: true })} style={btn}>
-            <Svg d={ICON.tasks.split('M20')[0]} size={16} sw={2.2} color={C.blue} />Turn into task
-          </button>
+          {ownTask ? (
+            <button type="button" onClick={() => router.push(`/tasks?task=${ownTask.id}`)} style={btn} title={ownTask.title}>
+              <Svg d={ICON.tasks.split('M20')[0]} size={16} sw={2.2} color={C.blue} />Open its task
+            </button>
+          ) : (
+            <button type="button" disabled={making} onClick={async () => { setMaking(true); await act('PATCH', `/api/notes/${note.id}`, { toTask: true }); setMaking(false); }} style={{ ...btn, opacity: making ? 0.6 : 1 }}>
+              <Svg d={ICON.tasks.split('M20')[0]} size={16} sw={2.2} color={C.blue} />{making ? 'Creating…' : 'Turn into task'}
+            </button>
+          )}
           <button type="button" onClick={() => openCapture({ type: 'event', title: note.title, linkNoteId: note.id })} style={btn}>
             <Svg d="M5 5h14a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2zM3 10h18" size={16} sw={2.2} color={C.purple} />Add to calendar
           </button>
@@ -153,16 +172,24 @@ export function NoteDetail({ note, onDeleted, compact }: { note: Note; onDeleted
       <div ref={pickerRef} style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 680 }}>
         <span style={{ fontSize: 12, color: C.dim, letterSpacing: '.06em' }}>LINKED</span>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-          {note.links.map((l, i) => (
-            <span key={`${l.label}${i}`} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 4px 4px 12px', borderRadius: 10, background: C.surface, border: `1px solid ${C.border}`, fontSize: 13, color: '#C3C9D4' }}>
-              <span style={{ width: 8, height: 8, borderRadius: 2, background: typeColor[l.type] }} />
-              <span style={{ color: typeColor[l.type], fontWeight: 600 }}>{l.type}</span>
-              {l.label}
-              <button type="button" aria-label={`Unlink ${l.label}`} onClick={() => act('PATCH', `/api/notes/${note.id}`, { links: note.links.filter((_, j) => j !== i) })} style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: 'transparent', color: C.dim, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {note.links.map((l, i) => {
+            const r = resolve(l);
+            return (
+            <span key={`${l.type}${l.id ?? l.label}${i}`} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 4px 4px 4px', borderRadius: 10, background: C.surface, border: `1px solid ${C.border}`, fontSize: 13, color: '#C3C9D4' }}>
+              <button
+                type="button" disabled={!r.go} onClick={() => r.go && router.push(r.go)} title={r.go ? `Open ${l.type.toLowerCase()}` : 'No longer exists'}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 4px 4px 8px', minHeight: 28, border: 'none', background: 'transparent', color: r.exists ? '#C3C9D4' : C.dim, fontSize: 13, textDecoration: r.exists ? 'none' : 'line-through', cursor: r.go ? 'pointer' : 'default' }}
+              >
+                <span style={{ width: 8, height: 8, borderRadius: 2, background: typeColor[l.type] }} />
+                <span style={{ color: typeColor[l.type], fontWeight: 600 }}>{l.type}</span>
+                {r.label}
+              </button>
+              <button type="button" aria-label={`Unlink ${r.label}`} onClick={() => act('PATCH', `/api/notes/${note.id}`, { links: note.links.filter((_, j) => j !== i) })} style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: 'transparent', color: C.dim, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Svg d={ICON.close} size={12} sw={2.6} />
               </button>
             </span>
-          ))}
+            );
+          })}
           <button type="button" onClick={() => setPicker((v) => !v)} aria-expanded={picker} aria-label="Link a task or event" style={{ width: 38, height: 38, borderRadius: 10, border: `1px dashed ${picker ? C.accent : '#4A5160'}`, background: picker ? C.accentDim : 'transparent', color: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <Svg d={ICON.plus} size={16} sw={2.6} />
           </button>

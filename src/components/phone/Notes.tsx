@@ -9,7 +9,7 @@ import type { Note } from '@/lib/types';
 import { allTagColor, dayLabel, kindLabel } from '@/lib/view';
 
 export default function PhoneNotes() {
-  const { state, today, tz, openCapture } = useApp();
+  const { state, today, tz, openCapture, allNotes, moreNotes, loadOlder } = useApp();
   const s = state.settings;
   const [q, setQ] = useState('');
   const [chip, setChip] = useState('All');
@@ -20,7 +20,7 @@ export default function PhoneNotes() {
     if (id) setOpen(id);
   }, [params]);
 
-  const list = state.notes.filter((n) =>
+  const list = allNotes.filter((n) =>
     (chip === 'All' || (chip === 'From voice' ? n.source === 'voice' : n.tag === chip)) &&
     (!q.trim() || (n.title + ' ' + n.body).toLowerCase().includes(q.trim().toLowerCase()))
   );
@@ -30,15 +30,15 @@ export default function PhoneNotes() {
     const g = groups.find((x) => x.label === label);
     if (g) g.notes.push(n); else groups.push({ label, notes: [n] });
   }
-  const eveningDone = state.notes.some((n) => n.source === 'evening' && dayLabel(n.createdAt, today, tz) === 'Today');
-  const cur = state.notes.find((n) => n.id === open);
+  const eveningDone = allNotes.some((n) => n.source === 'evening' && dayLabel(n.createdAt, today, tz) === 'Today');
+  const cur = allNotes.find((n) => n.id === open);
 
   return (
     <div style={{ background: C.bg, color: C.text, minHeight: '100dvh' }}>
       <div style={{ padding: '24px 20px 130px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h1 style={{ margin: 0, fontFamily: HEAD, fontSize: 26 }}>Notes</h1>
-          <span style={{ fontSize: 13, color: C.muted }}>{state.notes.length} note{state.notes.length === 1 ? '' : 's'}</span>
+          <span style={{ fontSize: 13, color: C.muted }}>{allNotes.length}{moreNotes ? '+' : ''} note{allNotes.length === 1 ? '' : 's'}</span>
         </div>
         <label htmlFor="msearch" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 14px', borderRadius: 12, background: C.surface, border: `1px solid ${C.border2}` }}>
           <Svg d={ICON.search} size={16} sw={2.2} color={C.dim} />
@@ -85,6 +85,11 @@ export default function PhoneNotes() {
             </div>
           </div>
         ))}
+        {moreNotes && (
+            <button type="button" onClick={() => void loadOlder('notes')} style={{ padding: 12, minHeight: 44, borderRadius: 12, border: `1px dashed ${C.border2}`, background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600 }}>
+              Load older notes
+            </button>
+          )}
       </div>
 
       <button type="button" aria-label="New note" onClick={() => openCapture({ type: 'note' })} style={{ position: 'fixed', right: 20, bottom: 'calc(104px + env(safe-area-inset-bottom))', width: 56, height: 56, borderRadius: 18, border: 'none', background: C.amber, color: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(255,200,92,.3)', zIndex: 15 }}>

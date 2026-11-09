@@ -1,19 +1,20 @@
-/** Level ladder, XP maths and rewards. Pure – used by server and client. */
+/** Level ladder, XP maths and rewards. Pure – used by server and client.
+ * Only list rewards that really exist in the app (themes, streak freezes); the rest are just titles. */
 
 export const LADDER: [lvl: number, name: string, xp: number, reward: string][] = [
   [1, 'Starter', 0, 'Daylog unlocked'],
-  [2, 'Logger', 100, 'Custom tags'],
-  [3, 'Planner', 250, 'Week view'],
+  [2, 'Logger', 100, ''],
+  [3, 'Planner', 250, ''],
   [4, 'Doer', 400, '"Ocean" theme'],
-  [5, 'Finisher', 550, 'Daily quests'],
-  [6, 'Maker', 750, 'Voice shortcuts'],
-  [7, 'Builder', 1000, 'Badges wall'],
+  [5, 'Finisher', 550, ''],
+  [6, 'Maker', 750, ''],
+  [7, 'Builder', 1000, ''],
   [8, 'Operator', 1500, '"Dusk" theme + 1 streak freeze'],
-  [9, 'Strategist', 2200, 'Weekly review report'],
-  [10, 'Architect', 3000, 'Custom XP rules'],
+  [9, 'Strategist', 2200, ''],
+  [10, 'Architect', 3000, ''],
   [12, 'Captain', 4500, '2nd streak freeze slot'],
   [15, 'Visionary', 7000, '"Gold" theme'],
-  [20, 'Legend', 12000, 'Legend ring on your score'],
+  [20, 'Legend', 12000, ''],
   [25, 'Icon', 25000, '3rd streak freeze slot'],
   [30, 'Mythic', 45000, '"Amethyst" theme · the final one']
 ];
@@ -77,7 +78,14 @@ export function rewardsAt(lvl: number): Reward[] {
     });
   }
   const entry = LADDER.find((e) => e[0] === lvl);
-  if (entry && !out.length) out.push({ icon: 'star', title: entry[3], sub: `Unlocked at ${entry[1]}` });
+  if (entry && !out.length && entry[3]) out.push({ icon: 'star', title: entry[3], sub: `Unlocked at ${entry[1]}` });
+  else if (entry && !out.length) out.push({ icon: 'star', title: `New title: ${entry[1]}`, sub: 'Keep the streak alive' });
   if (!entry && !out.length) out.push({ icon: 'star', title: `Level ${lvl}`, sub: 'Keep the streak alive' });
   return out;
+}
+
+/** How far through the current level (0–100). Full at the max level. */
+export function levelPct(p: { xp: number; level: number; levelXp: number; nextXp: number }): number {
+  if (p.level >= MAX_LEVEL || p.nextXp <= p.levelXp) return 100;
+  return Math.max(0, Math.min(100, Math.round(((p.xp - p.levelXp) / (p.nextXp - p.levelXp)) * 100)));
 }

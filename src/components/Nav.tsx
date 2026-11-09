@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { CSSProperties, ReactNode } from 'react';
 import { useApp } from './store';
 import { C, HEAD, ICON, Svg } from './ui';
+import { levelPct } from '@/lib/levels';
 
 export const NAV_ITEMS = [
   { label: 'Today', href: '/', d: ICON.today },
@@ -67,7 +68,7 @@ export function DesktopNav({
 export function LevelCard({ long }: { long?: boolean }) {
   const { state } = useApp();
   const p = state.progress;
-  const pct = Math.min(100, Math.round((p.xp / Math.max(1, p.nextXp)) * 100)) + '%';
+  const pct = levelPct(p) + '%';
   return (
     <div style={{ marginTop: 'auto', padding: 16, borderRadius: 14, background: C.surface, border: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>

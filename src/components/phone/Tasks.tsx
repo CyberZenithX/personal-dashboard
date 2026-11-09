@@ -48,7 +48,6 @@ export function SwipeRow({ task, children, highlight }: { task: Task; children: 
           if (wasLong) return;
           if (Math.abs(moved) > 10) suppress.current = true;
           if (moved > 80) {
-            if (task.done) flash(`Marked not done · ${task.title}`);
             toggleTask(task.id);
           } else if (moved < -80) {
             void act('PATCH', `/api/tasks/${task.id}`, { pushDays: 1 }).then((r) => r && flash(`Pushed to tomorrow · ${task.title}`));
@@ -72,7 +71,7 @@ export function SwipeRow({ task, children, highlight }: { task: Task; children: 
 }
 
 export default function PhoneTasks() {
-  const { state, today, tz, toggleTask, openCapture, openTaskMenu } = useApp();
+  const { state, today, tz, toggleTask, openCapture, openTaskMenu, allTasks, moreTasks, loadOlder } = useApp();
   const s = state.settings;
   const q = state.progress.overdueQuest;
   const [view, setView] = useState<'Today' | 'Upcoming' | 'Done'>('Today');
@@ -82,7 +81,7 @@ export default function PhoneTasks() {
   // ?task=ID (from search): open the right tab and scroll to it
   useEffect(() => {
     const id = Number(params.get('task'));
-    const t = id ? state.tasks.find((x) => x.id === id) : undefined;
+    const t = id ? allTasks.find((x) => x.id === id) : undefined;
     if (!t) return;
     const g = taskGroup(t, today);
     setTag('All');
@@ -93,7 +92,7 @@ export default function PhoneTasks() {
     return () => clearTimeout(off);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params]);
-  const visible = state.tasks.filter((t) => tag === 'All' || t.tag === tag);
+  const visible = allTasks.filter((t) => tag === 'All' || t.tag === tag);
   const groups = view === 'Upcoming'
     ? [...groupTasks(visible, 'Upcoming', today, tz), ...groupTasks(visible, 'Someday', today, tz)]
     : groupTasks(visible, view as TaskView, today, tz);
@@ -150,6 +149,11 @@ export default function PhoneTasks() {
             ))}
           </section>
         ))}
+        {view === 'Done' && moreTasks && (
+            <button type="button" onClick={() => void loadOlder('tasks')} style={{ padding: 12, minHeight: 44, borderRadius: 12, border: `1px dashed ${C.border2}`, background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600 }}>
+              Load older finished tasks
+            </button>
+          )}
         <span style={{ fontSize: 12, color: C.dim, paddingRight: 76, lineHeight: 1.5 }}>Swipe a task right to finish, left to push to tomorrow. Tap ⋯ to edit, change its tag or date, or delete it.</span>
       </div>
 

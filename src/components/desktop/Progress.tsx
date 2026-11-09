@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import { DesktopNav } from '../Nav';
 import { useApp } from '../store';
 import { C, HEAD, ICON, Svg } from '../ui';
-import { LADDER, titleFor } from '@/lib/levels';
+import { LADDER, levelPct, titleFor } from '@/lib/levels';
 import { addDays, DOW_SHORT, dow, minutesOfDay, weekStart } from '@/lib/time';
 
 export const SHADES = ['#22262F', '#3D4A1C', '#6E8A22', '#A4CC2B', '#C6F432'];
@@ -64,7 +64,7 @@ export default function Progress() {
   const week7 = Array.from({ length: 7 }, (_, i) => addDays(ws, i));
   const maxXp = Math.max(1, ...week7.map((d) => p.days[d]?.xp ?? 0));
   const pct = p.lastWeekXp > 0 ? Math.round(((p.weekXp - p.lastWeekXp) / p.lastWeekXp) * 100) : null;
-  const barPct = Math.min(100, Math.round((p.xp / Math.max(1, p.nextXp)) * 100));
+  const barPct = levelPct(p);
 
   const curEntry = titleFor(p.level).entry;
   const ladder = LADDER.map(([lvl, name, xp, reward], i) => {
@@ -228,9 +228,9 @@ export default function Progress() {
                       <span style={{ fontSize: 12, fontWeight: 600, color: t.now ? C.accent : t.done ? C.dim : t.next ? '#FFB36B' : '#5A6273' }}>{t.now ? 'Current' : t.done ? 'Done' : t.next ? 'Next up' : 'Locked'}</span>
                     </div>
                     <span style={{ fontSize: 12, color: C.dim }}>{t.now ? `You are here · ${p.xp.toLocaleString()} XP` : t.done ? 'Reached' : `Needs ${t.xp.toLocaleString()} XP total`}</span>
-                    <span style={{ alignSelf: 'flex-start', marginTop: 4, padding: '5px 10px', borderRadius: 8, background: t.done || t.now ? C.accentDim : t.next ? '#2A1D12' : '#1A1D24', color: t.done || t.now ? C.accent : t.next ? '#FFB36B' : C.dim, fontSize: 12 }}>
+                    {t.reward && <span style={{ alignSelf: 'flex-start', marginTop: 4, padding: '5px 10px', borderRadius: 8, background: t.done || t.now ? C.accentDim : t.next ? '#2A1D12' : '#1A1D24', color: t.done || t.now ? C.accent : t.next ? '#FFB36B' : C.dim, fontSize: 12 }}>
                       {t.done || t.now ? 'Unlocked' : 'Unlocks'} · {t.reward}
-                    </span>
+                    </span>}
                   </div>
                 </div>
               ))}

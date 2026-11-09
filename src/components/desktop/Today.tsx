@@ -51,9 +51,9 @@ export default function Today() {
   const timeline = useTimeline();
   const keys = s.keys;
 
-  const tasks = state.tasks
-    .filter((t) => t.dueDate === today || (t.dueDate && t.dueDate < today && !t.done))
-    .filter((t) => tag === 'All' || t.tag === tag);
+  // Same list as the "Today's tasks" card (before its tag filter), so the counts always match what you see.
+  const listed = state.tasks.filter((t) => t.dueDate === today || (t.dueDate && t.dueDate < today && !t.done));
+  const tasks = listed.filter((t) => tag === 'All' || t.tag === tag);
   const sorted = [...tasks].sort((a, b) => Number(a.done) - Number(b.done) || (a.dueTime ?? '99').localeCompare(b.dueTime ?? '99'));
 
   const meta = (t: (typeof tasks)[number]) => {
@@ -144,7 +144,7 @@ export default function Today() {
                 <h2 style={{ margin: 0, fontFamily: HEAD, fontSize: 18 }}>{scoreMessage(day.score, day.checkins)}</h2>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13, color: '#C3C9D4' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Check-ins</span><span style={{ color: '#fff', fontWeight: 600 }}>{day.checkins} / {s.goal}</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tasks done</span><span style={{ color: '#fff', fontWeight: 600 }}>{day.tasksDone} / {day.tasksTotal}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tasks done (today + overdue)</span><span style={{ color: '#fff', fontWeight: 600 }}>{listed.filter((t) => t.done).length} / {listed.length}</span></div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Notes logged</span><span style={{ color: '#fff', fontWeight: 600 }}>{day.notes}</span></div>
                 </div>
                 <span style={{ fontSize: 12, color: need ? C.accent2 : C.accent }}>

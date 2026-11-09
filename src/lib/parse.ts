@@ -21,6 +21,12 @@ function nextWeekday(from: string, target: number): string {
   return addDays(from, diff);
 }
 
+/** "friday" = the coming Friday (today if it is Friday); "next friday" said on a Friday = a week from today. */
+function weekdayFrom(today: string, target: number, next: boolean): string {
+  const d = nextWeekday(today, target);
+  return next && d === today ? addDays(today, 7) : d;
+}
+
 function pad(n: number) {
   return String(n).padStart(2, '0');
 }
@@ -81,11 +87,11 @@ export function parseQuick(input: string, today: string): Parsed {
   } else if ((m = /\snext\s+week(?![\w'’])/i.exec(text))) {
     date = addDays(today, 7);
     text = text.replace(m[0], ' ');
-  } else if ((m = new RegExp(`\\s(?:on\\s+|next\\s+)?(${FULL_DAYS.join('|')})(?![\\w'’])`, 'i').exec(text))) {
-    date = nextWeekday(today, FULL_DAYS.indexOf(m[1].toLowerCase()));
+  } else if ((m = new RegExp(`\\s(on\\s+|next\\s+)?(${FULL_DAYS.join('|')})(?![\\w'’])`, 'i').exec(text))) {
+    date = weekdayFrom(today, FULL_DAYS.indexOf(m[2].toLowerCase()), !!m[1] && /next/i.test(m[1]));
     text = text.replace(m[0], ' ');
-  } else if ((m = /\son\s+(sun|mon|tues?|wed|thur?s?|fri|sat)(?![\w'’])/i.exec(text))) {
-    date = nextWeekday(today, ABBR[m[1].toLowerCase()]);
+  } else if ((m = /\s(on|next)\s+(sun|mon|tues?|wed|thur?s?|fri|sat)(?![\w'’])/i.exec(text))) {
+    date = weekdayFrom(today, ABBR[m[2].toLowerCase()], /next/i.test(m[1]));
     text = text.replace(m[0], ' ');
   } else if ((m = /\s(sun|mon|tues?|wed|thur?s?|fri|sat)\s*$/i.exec(text))) {
     date = nextWeekday(today, ABBR[m[1].toLowerCase()]);

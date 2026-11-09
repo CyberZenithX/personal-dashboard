@@ -4,6 +4,7 @@ import { useApp } from '../store';
 import { C, HEAD, ICON, Svg } from '../ui';
 import { heatLevel, paceText, resetsIn } from '../desktop/Progress';
 import { addDays, DOW_SHORT, dow, weekStart } from '@/lib/time';
+import { levelPct } from '@/lib/levels';
 
 const QUEST_COLORS = (done: boolean) => ({ bar: done ? C.accent : C.blue, xp: done ? C.accent : C.muted });
 const BADGE: Record<string, [string, string]> = {
@@ -21,7 +22,7 @@ export default function PhoneProgress() {
   const start = addDays(weekStart(today, s.week), -21);
   const cells = Array.from({ length: 28 }, (_, i) => addDays(start, i));
   const heads = Array.from({ length: 7 }, (_, i) => DOW_SHORT[(dow(start) + i) % 7][0]);
-  const bar = Math.min(100, Math.round((p.xp / Math.max(1, p.nextXp)) * 100));
+  const bar = levelPct(p);
   const card = { padding: 18, borderRadius: 18, background: C.surface, border: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column' as const };
 
   return (

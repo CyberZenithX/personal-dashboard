@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, type CSSProperties } from 'react';
 import { useApp } from '../store';
 import { C, ICON, Svg, useDialogFocus, visuallyHidden } from '../ui';
 import { fmtElapsed, useVoice } from '../useVoice';
@@ -20,6 +20,40 @@ export function itemSub(it: SortItem, mode: '24h' | '12h', title?: string): stri
   if (it.time) bits.push(fmtTime(it.time, mode) + (it.type === 'event' && it.endTime ? '–' + fmtTime(it.endTime, mode) : ''));
   if (it.tag) bits.push(it.tag);
   return bits.join(' · ') || (it.type === 'note' ? 'Untagged' : 'No date');
+}
+
+/** In review: fix the title, what kind of item it is, its tag and (for events) when. */
+export function ReviewFields({ it, onChange }: { it: SortItem; onChange: (patch: Partial<SortItem>) => void }) {
+  const { state, today } = useApp();
+  const s = state.settings;
+  if (it.type === 'complete') return null;
+  const tags = it.type === 'note' ? s.noteTags : it.type === 'task' ? s.taskTags : [...s.taskTags, ...s.noteTags];
+  const field: CSSProperties = { padding: '7px 9px', borderRadius: 8, background: C.bg, border: '1px solid #3A404D', color: '#fff', fontSize: 13, colorScheme: 'dark', minWidth: 0, minHeight: 34 };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <input aria-label="Title" value={it.title} onChange={(e) => onChange({ title: e.target.value })} style={{ ...field, fontSize: 14, fontWeight: 600 }} />
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        <select aria-label="Save as" value={it.type} onChange={(e) => {
+          const type = e.target.value as SortItem['type'];
+          onChange(type === 'event' ? { type, time: it.time ?? '09:00', date: it.date ?? today } : { type, tag: (type === 'note' ? s.noteTags : s.taskTags).some((t) => t[0] === it.tag) ? it.tag : null });
+        }} style={field}>
+          <option value="task">Task</option>
+          <option value="note">Note</option>
+          <option value="event">Event</option>
+        </select>
+        <select aria-label="Tag" value={it.tag ?? ''} onChange={(e) => onChange({ tag: e.target.value || null })} style={field}>
+          <option value="">Untagged</option>
+          {[...new Set([...tags.map((t) => t[0]), ...(it.tag ? [it.tag] : [])])].map((t) => <option key={t} value={t}>{t}</option>)}
+        </select>
+        {it.type !== 'note' && (
+          <input aria-label="Date" type="date" value={it.date ?? ''} onChange={(e) => onChange({ date: e.target.value || null })} style={field} />
+        )}
+        {it.type !== 'note' && it.date && (
+          <input aria-label="Time" type="time" value={it.time ?? ''} onChange={(e) => onChange({ time: e.target.value || null })} style={field} />
+        )}
+      </div>
+    </div>
+  );
 }
 
 export default function Voice({ onClose, overlay }: { onClose: () => void; overlay?: boolean }) {
@@ -50,9 +84,9 @@ export default function Voice({ onClose, overlay }: { onClose: () => void; overl
         <h1 id="voice-h" style={visuallyHidden}>Voice capture</h1>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ width: 10, height: 10, borderRadius: 99, background: listening && v.supported && !v.showTyping ? '#FF6B5C' : '#5A6273' }} />
+            <span style={{ width: 10, height: 10, borderRadius: 99, background: listening && v.ready && v.supported && !v.showTyping ? '#FF6B5C' : '#5A6273' }} />
             <span style={{ fontSize: 14, fontWeight: 600 }} role="status">
-              {listening ? (v.starting ? 'Connecting…' : v.supported && !v.showTyping ? `Listening · ${fmtElapsed(v.elapsed)}` : 'Type or dictate') : v.mode === 'review' ? 'Review before saving' : 'Saving…'}
+              {listening ? (v.supported && !v.showTyping ? (v.starting || !v.ready ? 'Starting microphone…' : `Listening · ${fmtElapsed(v.elapsed)}`) : 'Type or dictate') : v.mode === 'review' ? 'Review before saving' : 'Saving…'}
             </span>
           </div>
           <span style={{ fontSize: 12, color: C.muted, padding: '6px 10px', borderRadius: 99, border: `1px solid ${C.border2}` }}>
@@ -63,7 +97,7 @@ export default function Voice({ onClose, overlay }: { onClose: () => void; overl
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 22 }}>
           {v.supported && !v.showTyping ? (
             <>
-              <div style={{ width: 96, height: 96, borderRadius: 99, background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: listening ? 'pulse 1.6s infinite' : undefined, opacity: listening ? 1 : 0.5 }}>
+              <div style={{ width: 96, height: 96, borderRadius: 99, background: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: listening && v.ready ? 'pulse 1.6s infinite' : undefined, opacity: listening && v.ready ? 1 : 0.5 }}>
                 <Svg d={ICON.mic} size={40} sw={2.2} color="var(--bg)" />
               </div>
               <div aria-hidden="true" style={{ display: 'flex', gap: 5, alignItems: 'center', height: 40 }}>
@@ -104,8 +138,14 @@ export default function Voice({ onClose, overlay }: { onClose: () => void; overl
                   <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 600, color: t.color }}>
                     <Svg d={t.icon} size={14} sw={2.4} />{t.label}{live ? ' · still listening' : ''}
                   </span>
-                  <span style={{ fontSize: 15, fontWeight: 600, paddingRight: v.mode === 'review' ? 28 : 0 }}>{it.type === 'complete' ? `${it.title} marked done` : it.title}</span>
-                  <span style={{ fontSize: 12, color: C.muted }}>{itemSub(it, s.time, matched?.title)}</span>
+                  {v.mode === 'review' && it.type !== 'complete' ? (
+                    <div style={{ paddingRight: 28 }}><ReviewFields it={it} onChange={(patch) => v.updateItem(i, patch)} /></div>
+                  ) : (
+                    <>
+                      <span style={{ fontSize: 15, fontWeight: 600, paddingRight: v.mode === 'review' ? 28 : 0 }}>{it.type === 'complete' ? `${it.title} marked done` : it.title}</span>
+                      <span style={{ fontSize: 12, color: C.muted }}>{itemSub(it, s.time, matched?.title)}</span>
+                    </>
+                  )}
                   {v.mode === 'review' && (
                     <button type="button" aria-label={`Remove ${it.title}`} onClick={() => v.removeItem(i)} style={{ position: 'absolute', top: 8, right: 8, width: 32, height: 32, borderRadius: 8, border: 'none', background: 'transparent', color: C.dim, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       <Svg d={ICON.close} size={14} sw={2.6} />

@@ -33,8 +33,8 @@ export function Toast() {
 /* --------------------------------------------------------------- task menu */
 
 export function TaskMenu() {
-  const { menuTaskId, openTaskMenu, state } = useApp();
-  const task = state.tasks.find((t) => t.id === menuTaskId);
+  const { menuTaskId, openTaskMenu, allTasks } = useApp();
+  const task = allTasks.find((t) => t.id === menuTaskId);
   if (!task) return null;
   return <TaskEditor key={task.id} task={task} onClose={() => openTaskMenu(null)} />;
 }
@@ -154,7 +154,7 @@ function TaskEditor({ task, onClose }: { task: Task; onClose: () => void }) {
 /* ----------------------------------------------------------------- palette */
 
 export function Palette() {
-  const { palette, setPalette, state, today, phone } = useApp();
+  const { palette, setPalette, state, today, phone, allTasks, allNotes } = useApp();
   const router = useRouter();
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(0);
@@ -169,9 +169,9 @@ export function Palette() {
     const needle = q.trim().toLowerCase();
     if (!needle) return [];
     const out: { key: string; type: string; label: string; sub: string; color: string; go: () => void }[] = [];
-    state.tasks.filter((t) => t.title.toLowerCase().includes(needle)).slice(0, 6).forEach((t) =>
+    allTasks.filter((t) => t.title.toLowerCase().includes(needle)).slice(0, 6).forEach((t) =>
       out.push({ key: 't' + t.id, type: 'Task', label: t.title, sub: t.done ? 'Done' : t.dueDate ?? 'No date', color: C.blue, go: () => router.push(`/tasks?task=${t.id}`) }));
-    state.notes.filter((n) => (n.title + ' ' + n.body).toLowerCase().includes(needle)).slice(0, 6).forEach((n) =>
+    allNotes.filter((n) => (n.title + ' ' + n.body).toLowerCase().includes(needle)).slice(0, 6).forEach((n) =>
       out.push({ key: 'n' + n.id, type: 'Note', label: n.title, sub: n.body.slice(0, 60), color: C.amber, go: () => router.push('/notes?note=' + n.id) }));
     state.events.filter((e) => e.title.toLowerCase().includes(needle) && (e.date >= today || e.repeatDays?.length)).slice(0, 4).forEach((e) => {
       // repeating habits: jump to the next day they happen
@@ -183,7 +183,7 @@ export function Palette() {
       out.push({ key: 'e' + e.id, type: 'Event', label: e.title, sub: day, color: C.purple, go: () => router.push(`/calendar?date=${day}`) });
     });
     return out;
-  }, [q, state, today, router]);
+  }, [q, state, today, router, allTasks, allNotes]);
   if (!palette) return null;
   const close = () => setPalette(false);
   const pick = (i: number) => { results[i]?.go(); close(); };

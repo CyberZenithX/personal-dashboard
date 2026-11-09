@@ -121,13 +121,27 @@ function words(s: string): string[] {
     .filter((w) => w.length > 2 && !['the', 'and', 'for', 'with', 'done', 'finished', 'my', 'that', 'this', 'did'].includes(w));
 }
 
+/** Verbs that appear in lots of task titles; matching on one of these alone isn't enough. */
+const GENERIC = new Set(['call', 'email', 'send', 'buy', 'pay', 'book', 'read', 'write', 'finish', 'review', 'reply', 'text', 'check',
+  'meeting', 'meet', 'make', 'get', 'start', 'work', 'task', 'todo', 'plan', 'update', 'fix', 'clean', 'go', 'with', 'from', 'about']);
+
+/**
+ * Find the open task the user says they finished. Needs at least one meaningful (non-generic) word in
+ * common, and either half of the task's words or two words in total — so "finished the call" won't tick
+ * off "Call dentist", but "done with the gym" still finds "Gym — legs" and "just did the proposal" finds "Send client proposal".
+ */
 function matchTask(clause: string, tasks: Ctx['openTasks']): Ctx['openTasks'][number] | null {
   const cw = new Set(words(clause));
-  let best: { t: Ctx['openTasks'][number]; score: number } | null = null;
+  let best: { t: Ctx['openTasks'][number]; strong: number; ratio: number } | null = null;
   for (const t of tasks) {
-    const tw = words(t.title);
-    const hit = tw.filter((w) => cw.has(w)).length;
-    if (hit > 0 && (!best || hit > best.score)) best = { t, score: hit };
+    const tw = [...new Set(words(t.title))];
+    if (!tw.length) continue;
+    const hits = tw.filter((w) => cw.has(w));
+    const strong = hits.filter((w) => !GENERIC.has(w)).length;
+    const ratio = hits.length / tw.length;
+    const distinctive = hits.some((w) => !GENERIC.has(w) && w.length >= 6);
+    if (!strong || (ratio < 0.5 && hits.length < 2 && !distinctive)) continue;
+    if (!best || strong > best.strong || (strong === best.strong && ratio > best.ratio)) best = { t, strong, ratio };
   }
   return best?.t ?? null;
 }

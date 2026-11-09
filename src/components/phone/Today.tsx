@@ -5,6 +5,7 @@ import { C, HEAD, ICON, Svg } from '../ui';
 import { scoreMessage } from '../desktop/Today';
 import { DOW_SHORT, dow, fmtMin, fmtTime, hhmmToMin, minutesOfDay, MONTH_SHORT, parts } from '@/lib/time';
 import { eventsOn } from '@/lib/view';
+import { levelPct } from '@/lib/levels';
 
 export default function PhoneToday() {
   const { state, today, tz, toggleTask, openCapture, openVoice } = useApp();
@@ -61,7 +62,7 @@ export default function PhoneToday() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 0 }}>
             <span style={{ fontWeight: 600, fontSize: 15 }}>Day score</span>
             <span style={{ fontSize: 12, color: C.muted }}>{scoreMessage(day.score, day.checkins)}</span>
-            <div style={{ height: 6, borderRadius: 99, background: '#262B36', overflow: 'hidden' }}><div style={{ height: '100%', width: Math.min(100, Math.round((p.xp / Math.max(1, p.nextXp)) * 100)) + '%', background: C.accent, transition: 'width .5s' }} /></div>
+            <div style={{ height: 6, borderRadius: 99, background: '#262B36', overflow: 'hidden' }}><div style={{ height: '100%', width: levelPct(p) + '%', background: C.accent, transition: 'width .5s' }} /></div>
             <span style={{ fontSize: 12, color: C.muted }}>{p.xp.toLocaleString()} / {p.nextXp.toLocaleString()} XP to Lv {Math.min(30, p.level + 1)}</span>
             <span style={{ fontSize: 12, color: day.checkins >= s.goal ? C.accent : C.accent2 }}>Check-in {Math.min(day.checkins, s.goal)} of {s.goal} today</span>
           </div>

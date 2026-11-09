@@ -31,7 +31,7 @@ export function groupTasks(tasks: Task[], view: TaskView, today: string, tz: str
 }
 
 export default function Tasks() {
-  const { state, today, tz, act, toggleTask, openTaskMenu, selectedTask, setSelectedTask } = useApp();
+  const { state, today, tz, act, toggleTask, openTaskMenu, selectedTask, setSelectedTask, allTasks, moreTasks, loadOlder } = useApp();
   const s = state.settings;
   const p = state.progress;
   const [view, setView] = useState<TaskView>('Today');
@@ -40,7 +40,7 @@ export default function Tasks() {
   // ?task=ID (from search): show the view that contains it, select it and scroll to it
   useEffect(() => {
     const id = Number(params.get('task'));
-    const t = id ? state.tasks.find((x) => x.id === id) : undefined;
+    const t = id ? allTasks.find((x) => x.id === id) : undefined;
     if (!t) return;
     const g = taskGroup(t, today);
     setTag('All');
@@ -53,13 +53,13 @@ export default function Tasks() {
     }, 60);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params]);
-  const selTask = state.tasks.find((t) => t.id === selectedTask);
+  const selTask = allTasks.find((t) => t.id === selectedTask);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [literal, setLiteral] = useState(false);
 
   const parsed = useMemo(() => (literal ? { title: draft, tag: null, date: null, time: null } : parseQuick(draft, today)), [draft, today, literal]);
-  const visible = state.tasks.filter((t) => tag === 'All' || t.tag === tag);
+  const visible = allTasks.filter((t) => tag === 'All' || t.tag === tag);
   const groups = groupTasks(visible, view, today, tz);
   const doneTodayCount = state.tasks.filter((t) => t.done && t.doneAt && ymd(new Date(t.doneAt), tz) === today).length;
 
@@ -132,12 +132,12 @@ export default function Tasks() {
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {['All', ...s.taskTags.map((t) => t[0])].map((g) => {
               const on = tag === g;
-              const count = g === 'All' ? state.tasks.length : state.tasks.filter((t) => t.tag === g).length;
+              const count = state.tasks.filter((t) => !t.done && (g === 'All' || t.tag === g)).length;
               return (
                 <button key={g} type="button" aria-pressed={on} onClick={() => setTag(g)} style={{ padding: '7px 14px', borderRadius: 99, border: `1px solid ${on ? '#5A6273' : C.border2}`, background: on ? '#1C2029' : 'transparent', color: on ? '#fff' : C.muted, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 99, background: g === 'All' ? C.accent : allTagColor(s, g) }} />
                   {g}
-                  <span style={{ fontSize: 11, opacity: 0.75 }}>{count}</span>
+                  <span style={{ fontSize: 11, opacity: 0.75 }} aria-label={`${count} open`}>{count}</span>
                 </button>
               );
             })}
@@ -189,6 +189,11 @@ export default function Tasks() {
               })}
             </section>
           ))}
+          {view === 'Done' && moreTasks && (
+            <button type="button" onClick={() => void loadOlder('tasks')} style={{ padding: 12, minHeight: 44, borderRadius: 12, border: `1px dashed ${C.border2}`, background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600 }}>
+              Load older finished tasks
+            </button>
+          )}
         </div>
 
         <aside style={{ flex: '1 1 300px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>

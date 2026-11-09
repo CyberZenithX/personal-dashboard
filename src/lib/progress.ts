@@ -125,16 +125,30 @@ export async function computeProgress(settings: Settings, today: string): Promis
   ];
 
   const ws = weekStart(today, settings.week);
-  const weekXp = sumRange(days, ws, addDays(ws, 6));
+  const thisWeekXp = sumRange(days, ws, addDays(ws, 6));
   const lastWeekXp = sumRange(days, addDays(ws, -7), addDays(ws, -1));
   const paceXpPerDay = sumRange(days, addDays(today, -6), today) / 7;
   let thingsThisWeek = 0;
   for (let d = addDays(today, -6); d <= today; d = addDays(d, 1)) thingsThisWeek += days[d]?.checkins ?? 0;
 
-  // Best XP week in the window (badge)
-  let bestWeek = 0;
-  for (let w = addDays(ws, -7 * 16); w <= ws; w = addDays(w, 7)) bestWeek = Math.max(bestWeek, sumRange(days, w, addDays(w, 6)));
-  const perfect = Object.values(days).some((d) => d.score >= 100);
+  // Badges look at the whole history, not just the 120-day window shown in the UI.
+  const weekXp: Record<string, number> = {};
+  for (const r of xpRows) {
+    if (r.d > today) continue;
+    const w = weekStart(r.d, settings.week);
+    weekXp[w] = (weekXp[w] ?? 0) + r.xp;
+  }
+  const bestWeek = Math.max(0, ...Object.values(weekXp));
+  const activeDays = new Set<string>([...xpMap.keys(), ...doneMap.keys(), ...noteMap.keys()]);
+  let perfect = false;
+  for (const d of activeDays) {
+    if (d > today) continue;
+    const x = xpMap.get(d);
+    const dn = doneMap.get(d);
+    const tasksDone = dn?.n ?? 0;
+    const tasksTotal = (dueMap.get(d) ?? 0) + (dn ? dn.n - dn.due_n : 0);
+    if (dayScore(x?.ck ?? 0, goal, tasksDone, tasksTotal, noteMap.get(d) ?? 0) >= 100) { perfect = true; break; }
+  }
   const sc = scalars[0] ?? { tasks_done: 0, notes: 0, voice: 0, linked: 0, early: 0, first_day: null };
   const accountOld = !!firstDay && firstDay <= addDays(today, -6);
 
@@ -170,7 +184,7 @@ export async function computeProgress(settings: Settings, today: string): Promis
     quests,
     overdueQuest: { done: overdue[0]?.dn ?? 0, total: overdue[0]?.total ?? 0 },
     badges,
-    weekXp,
+    weekXp: thisWeekXp,
     lastWeekXp,
     paceXpPerDay,
     thingsThisWeek

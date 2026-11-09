@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react';
 import { useApp } from '../store';
 import { C, ICON, Svg, useDialogFocus, visuallyHidden } from '../ui';
 import { fmtElapsed, useVoice } from '../useVoice';
-import { itemSub } from '../desktop/Voice';
+import { itemSub, ReviewFields } from '../desktop/Voice';
 
 export default function PhoneVoice({ onClose }: { onClose: () => void; overlay?: boolean }) {
   const v = useVoice(onClose);
@@ -27,8 +27,8 @@ export default function PhoneVoice({ onClose }: { onClose: () => void; overlay?:
           <Svg d={ICON.close} size={18} sw={2.4} />
         </button>
         <span role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600 }}>
-          <span style={{ width: 8, height: 8, borderRadius: 99, background: live ? '#FF6B5C' : '#5A6273' }} />
-          {listening ? (v.starting ? 'Connecting…' : live ? `Listening · ${fmtElapsed(v.elapsed)}` : 'Type or dictate') : v.mode === 'review' ? 'Review before saving' : 'Saving…'}
+          <span style={{ width: 8, height: 8, borderRadius: 99, background: live && v.ready ? '#FF6B5C' : '#5A6273' }} />
+          {listening ? (live ? (v.starting || !v.ready ? 'Starting microphone…' : `Listening · ${fmtElapsed(v.elapsed)}`) : 'Type or dictate') : v.mode === 'review' ? 'Review before saving' : 'Saving…'}
         </span>
         <span style={{ width: 44 }} />
       </div>
@@ -58,10 +58,14 @@ export default function PhoneVoice({ onClose }: { onClose: () => void; overlay?:
               <span style={{ width: 24, height: 24, borderRadius: done ? 99 : 7, background: done ? C.accent : tone[0], color: tone[1], display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
                 {done ? <Svg d={ICON.check} size={13} sw={3.5} color="var(--bg)" /> : <Svg d={it.type === 'note' ? ICON.pencil : it.type === 'event' ? ICON.calendar : ICON.plus} size={14} sw={2.4} />}
               </span>
-              <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <span style={{ fontSize: 14, fontWeight: 600 }}>{done ? `${it.title} marked done` : it.type === 'note' ? `“${it.title}”` : it.title}</span>
-                <span style={{ fontSize: 12, color: C.muted }}>{done ? 'Matched existing task' : `${tone[2]} · ${itemSub(it, s.time, matched?.title)}`}</span>
-              </span>
+              {v.mode === 'review' && !done ? (
+                <span style={{ flex: 1, minWidth: 0 }}><ReviewFields it={it} onChange={(patch) => v.updateItem(i, patch)} /></span>
+              ) : (
+                <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  <span style={{ fontSize: 14, fontWeight: 600 }}>{done ? `${it.title} marked done` : it.type === 'note' ? `“${it.title}”` : it.title}</span>
+                  <span style={{ fontSize: 12, color: C.muted }}>{done ? 'Matched existing task' : `${tone[2]} · ${itemSub(it, s.time, matched?.title)}`}</span>
+                </span>
+              )}
               {v.mode === 'review' ? (
                 <button type="button" aria-label={`Remove ${it.title}`} onClick={() => v.removeItem(i)} style={{ width: 44, height: 44, margin: -10, border: 'none', background: 'transparent', color: C.dim, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Svg d={ICON.close} size={16} sw={2.6} /></button>
               ) : (
@@ -87,7 +91,7 @@ export default function PhoneVoice({ onClose }: { onClose: () => void; overlay?:
           </button>
         )}
         <span style={{ fontSize: 13, color: C.muted }}>
-          {v.mode === 'review' ? 'Remove anything you don’t want first' : <>Tap to save all · <span style={{ color: C.accent, fontWeight: 600 }}>+{v.xp} XP</span></>}
+          {v.mode === 'review' ? 'Fix or remove anything before saving' : <>Tap to save all · <span style={{ color: C.accent, fontWeight: 600 }}>+{v.xp} XP</span></>}
         </span>
         {v.supported && listening && (
           <button type="button" onClick={() => v.setShowTyping(!v.showTyping)} style={{ border: 'none', background: 'transparent', color: C.muted, fontSize: 13, textDecoration: 'underline', minHeight: 44 }}>

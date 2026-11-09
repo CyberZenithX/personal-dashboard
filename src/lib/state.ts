@@ -116,22 +116,27 @@ export async function unaward(ref: string): Promise<void> {
   await sql`delete from xp_log where ref = ${ref}`;
 }
 
-/** Quests are awarded once per day when met, and taken back if the user un-does the work. Returns the number completed. */
+export const QUEST_KEYS = ['checkin', 'voice', 'tasks', 'evening', 'overdue'] as const;
+
+/**
+ * Quests are awarded once per day when met, and taken back if the user un-does the work.
+ * A 0-XP row (written by "Reset progress") marks a quest as spent for the day and is left alone.
+ */
 async function syncQuests(c: Ctx): Promise<{ completed: string[] }> {
   const p = await computeProgress(c.settings, c.today);
   const want: { key: string; met: boolean; xp: number }[] = [
     ...p.quests.map((q) => ({ key: q.key, met: q.done >= q.total, xp: q.xp })),
     { key: 'overdue', met: p.overdueQuest.total > 0 && p.overdueQuest.done >= p.overdueQuest.total, xp: QUEST_XP.overdue }
   ];
-  const existing = await sql<{ ref: string }>`select ref from xp_log where ref like ${'quest:' + c.today + ':%'}`;
-  const have = new Set(existing.map((r) => r.ref));
+  const existing = await sql<{ ref: string; amount: number }>`select ref, amount from xp_log where ref like ${'quest:' + c.today + ':%'}`;
+  const have = new Map(existing.map((r) => [r.ref, Number(r.amount)]));
   const completed: string[] = [];
   for (const q of want) {
     const ref = `quest:${c.today}:${q.key}`;
     if (q.met && !have.has(ref)) {
       await award(c, { kind: 'quest', amount: q.xp, label: q.key, ref });
       completed.push(q.key);
-    } else if (!q.met && have.has(ref)) {
+    } else if (!q.met && (have.get(ref) ?? 0) > 0) {
       await unaward(ref);
     }
   }
@@ -139,9 +144,27 @@ async function syncQuests(c: Ctx): Promise<{ completed: string[] }> {
 }
 
 /**
+ * Writes on one server instance run one at a time, so two quick requests (e.g. a double-tap)
+ * can't interleave their read-modify-write steps or double-count XP. Each write's own
+ * statements are also written to be safe on their own (compare-and-set, unique XP refs).
+ */
+let queue: Promise<unknown> = Promise.resolve();
+function serial<T>(fn: () => Promise<T>): Promise<T> {
+  const next = queue.then(fn, fn);
+  queue = next.catch(() => {});
+  return next;
+}
+
+/**
  * Run a write, then re-sync quests and return the fresh state with a toast and level-up info.
  */
-export async function mutate(
+export function mutate(
+  run: (c: Ctx) => Promise<{ label?: string; data?: Record<string, unknown> } | void>
+): Promise<MutationResult> {
+  return serial(() => mutateNow(run));
+}
+
+async function mutateNow(
   run: (c: Ctx) => Promise<{ label?: string; data?: Record<string, unknown> } | void>
 ): Promise<MutationResult> {
   const settings = await getSettings();
@@ -153,7 +176,8 @@ export async function mutate(
   const state = await loadState();
   const delta = after - before;
   let toast: string | undefined;
-  if (delta > 0) toast = (completed.length ? 'Quest complete · ' : '') + `+${delta} XP` + (!completed.length && out.label ? ` · ${out.label}` : '');
+  if (delta > 0) toast = (completed.length ? 'Quest complete · ' : '') + `+${delta} XP` + (out.label ? ` · ${out.label}` : '');
+  else if (out.label) toast = out.label;
   const from = levelFor(before);
   const to = levelFor(after);
   return { state, toast, levelUp: to > from ? { from, to } : undefined, data: out.data };

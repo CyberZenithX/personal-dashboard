@@ -21,25 +21,51 @@ export function ToggleRow({ label, desc, on, onChange, divider = true }: { label
 }
 
 export function TagGroup({ kind, title }: { kind: 'taskTags' | 'noteTags'; title: string }) {
-  const { state, setSettings } = useApp();
+  const { state, setSettings, act, allTasks, allNotes } = useApp();
   const tags = state.settings[kind];
   const [draft, setDraft] = useState('');
+  const [err, setErr] = useState('');
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [newName, setNewName] = useState('');
+  const [removing, setRemoving] = useState<string | null>(null);
   const set = (next: TagPair[]) => setSettings({ [kind]: next });
+  const clean = (v: string) => {
+    let t = v.trim().toLowerCase().replace(/\s+/g, '');
+    if (t && t[0] !== '#') t = '#' + t;
+    return t;
+  };
   const add = (e: React.FormEvent) => {
     e.preventDefault();
-    let v = draft.trim().toLowerCase().replace(/\s+/g, '');
+    const v = clean(draft);
     if (!v) return;
-    if (v[0] !== '#') v = '#' + v;
-    if (tags.some((t) => t[0] === v)) return;
+    if (!/^#[\p{L}\p{N}_-]{1,30}$/u.test(v)) return setErr('Use letters, numbers, - and _ (max 30)');
+    if (tags.some((t) => t[0] === v)) return setErr(`${v} is already here`);
+    setErr('');
     set([...tags, [v, TAG_PALETTE[tags.length % TAG_PALETTE.length]]]);
     setDraft('');
   };
+  const uses = (tag: string) => (kind === 'taskTags' ? allTasks : allNotes).filter((x) => x.tag === tag).length;
+  const renameBusy = useRef(false);
+  const rename = async (from: string) => {
+    if (renameBusy.current) return; // Enter and blur both land here
+    renameBusy.current = true;
+    setTimeout(() => { renameBusy.current = false; }, 300);
+    const to = clean(newName);
+    setRenaming(null);
+    if (!to || to === from) return;
+    await act('POST', '/api/tags', { kind, action: 'rename', tag: from, to });
+  };
+  const remove = async (tag: string) => {
+    setRemoving(null);
+    await act('POST', '/api/tags', { kind, action: 'remove', tag });
+  };
+  const what = kind === 'taskTags' ? 'task' : 'note';
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 14, borderTop: '1px solid #22262F' }}>
       <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>{title}</h3>
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
         {tags.map(([name, color], i) => (
-          <span key={name} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 4px 4px 10px', borderRadius: 10, background: C.surface2, border: `1px solid ${C.border2}`, fontSize: 13, fontWeight: 600 }}>
+          <span key={name} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 4px 4px 10px', borderRadius: 10, background: C.surface2, border: `1px solid ${removing === name ? '#FF7A6B' : C.border2}`, fontSize: 13, fontWeight: 600 }}>
             <button
               type="button" aria-label={`Change colour of ${name}`} title="Click to change colour"
               onClick={() => set(tags.map((t, j) => (j === i ? [t[0], TAG_PALETTE[(TAG_PALETTE.indexOf(color) + 1) % TAG_PALETTE.length]] : t)))}
@@ -47,24 +73,48 @@ export function TagGroup({ kind, title }: { kind: 'taskTags' | 'noteTags'; title
             >
               <span style={{ width: 16, height: 16, borderRadius: 99, border: '2px solid #0E1014', background: color, boxShadow: `0 0 0 1px ${color}` }} />
             </button>
-            <span style={{ color }}>{name}</span>
-            <button type="button" aria-label={`Remove ${name}`} onClick={() => set(tags.filter((_, j) => j !== i))} style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: 'transparent', color: C.dim, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            {renaming === name ? (
+              <form onSubmit={(e) => { e.preventDefault(); void rename(name); }} style={{ display: 'flex' }}>
+                <label htmlFor={`rn-${kind}-${i}`} style={{ position: 'absolute', left: -9999 }}>New name for {name}</label>
+                <input
+                  id={`rn-${kind}-${i}`} autoFocus value={newName} onChange={(e) => setNewName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setRenaming(null); } }} onBlur={() => void rename(name)}
+                  style={{ width: 110, padding: '4px 6px', borderRadius: 6, background: C.bg, border: `1px solid ${C.accent}`, color: '#fff', fontSize: 13, outline: 'none' }}
+                />
+              </form>
+            ) : (
+              <button type="button" onClick={() => { setRenaming(name); setNewName(name); setRemoving(null); }} title="Rename" aria-label={`Rename ${name}`} style={{ border: 'none', background: 'transparent', color, fontSize: 13, fontWeight: 600, padding: '4px 2px', minHeight: 28 }}>
+                {name}
+              </button>
+            )}
+            <button type="button" aria-label={`Remove ${name}`} onClick={() => { setRemoving(name); setRenaming(null); }} style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: 'transparent', color: C.dim, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Svg d={ICON.close} size={12} sw={2.6} />
             </button>
           </span>
         ))}
         <form onSubmit={add} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <label htmlFor={`new-${kind}`} style={{ position: 'absolute', left: -9999 }}>New tag for {title}</label>
-          <input id={`new-${kind}`} value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="#newtag" style={{ width: 120, padding: '9px 12px', borderRadius: 10, background: C.bg, border: '1px dashed #4A5160', color: '#fff', fontSize: 13, outline: 'none' }} />
+          <input id={`new-${kind}`} value={draft} onChange={(e) => { setDraft(e.target.value); setErr(''); }} placeholder="#newtag" style={{ width: 120, padding: '9px 12px', borderRadius: 10, background: C.bg, border: '1px dashed #4A5160', color: '#fff', fontSize: 13, outline: 'none' }} />
           <button type="submit" style={{ padding: '9px 12px', borderRadius: 10, border: 'none', background: '#262B36', color: C.accent, fontSize: 13, fontWeight: 700 }}>Add</button>
         </form>
       </div>
+      {err && <span role="alert" style={{ fontSize: 12, color: '#FF9E92' }}>{err}</span>}
+      {removing && (
+        <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', padding: 12, borderRadius: 12, border: '1px solid #5C2A24', background: '#1E1412', fontSize: 13, color: '#FFB4A8' }}>
+          <span style={{ flex: '1 1 220px' }}>
+            Remove {removing}? {uses(removing) ? `${uses(removing)} ${what}${uses(removing) === 1 ? '' : 's'} will become untagged.` : `No ${what}s use it.`}
+          </span>
+          <button type="button" onClick={() => setRemoving(null)} style={{ padding: '8px 12px', minHeight: 36, borderRadius: 9, border: '1px solid #3A404D', background: 'transparent', color: C.text, fontSize: 13, fontWeight: 600 }}>Keep</button>
+          <button type="button" onClick={() => void remove(removing)} style={{ padding: '8px 12px', minHeight: 36, borderRadius: 9, border: 'none', background: '#FF7A6B', color: '#1E1412', fontSize: 13, fontWeight: 700 }}>Remove</button>
+        </div>
+      )}
+      <span style={{ fontSize: 12, color: C.dim }}>Tap a tag to rename it — everything tagged with it follows.</span>
     </div>
   );
 }
 
 export function ShortcutsEditor() {
-  const { state, setSettings } = useApp();
+  const { state, setSettings, flash } = useApp();
   const keys = state.settings.keys;
   const [rec, setRec] = useState(-1);
   const stop = () => { keyState.recording = false; setRec(-1); };
@@ -88,6 +138,11 @@ export function ShortcutsEditor() {
                 if (e.key === 'Escape') return stop();
                 const combo = comboFromEvent(e);
                 if (!combo) return;
+                const clash = keys.findIndex((k, j) => j !== i && k === combo);
+                if (clash >= 0) {
+                  flash(`${combo} is already used for “${DEFAULT_KEYS[clash][0]}”. Press another key.`);
+                  return;
+                }
                 setSettings({ keys: keys.map((k, j) => (j === i ? combo : k)) });
                 stop();
               }}

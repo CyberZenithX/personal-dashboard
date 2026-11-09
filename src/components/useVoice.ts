@@ -11,6 +11,7 @@ interface SpeechRecognitionLike {
   onresult: ((e: { resultIndex: number; results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }> }) => void) | null;
   onerror: ((e: { error: string }) => void) | null;
   onend: (() => void) | null;
+  onstart?: (() => void) | null;
   start(): void;
   stop(): void;
   abort(): void;
@@ -48,6 +49,8 @@ export function useVoice(onDone: () => void) {
   const [typed, setTyped] = useState('');
   const [source, setSource] = useState<VoiceSource>('browser');
   const [starting, setStarting] = useState(true);
+  /** true once audio is really flowing (browser recogniser started, or Gemini Live connected) */
+  const [ready, setReady] = useState(false);
   const [showTyping, setShowTyping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
@@ -109,6 +112,7 @@ export function useVoice(onDone: () => void) {
       setFinalText(lastFinal.current);
       setInterim(tmp);
     };
+    r.onstart = () => setReady(true);
     r.onerror = (e) => {
       if (e.error === 'no-speech' || e.error === 'aborted') return;
       active.current = false;
@@ -246,6 +250,7 @@ export function useVoice(onDone: () => void) {
 
       live.current = { session: session as LiveSession, ctx, stream, lastAt: Date.now() };
       active.current = true;
+      setReady(true);
       setSource('live');
       setUsedModel(label);
       return true;
@@ -286,12 +291,12 @@ export function useVoice(onDone: () => void) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // timer
+  // timer (only counts while the mic is actually on)
   useEffect(() => {
-    if (mode !== 'listening') return;
+    if (mode !== 'listening' || !ready) return;
     const t = setInterval(() => setElapsed((s) => s + 1), 1000);
     return () => clearInterval(t);
-  }, [mode]);
+  }, [mode, ready]);
 
   // live sorting while speaking / typing
   useEffect(() => {
@@ -355,8 +360,9 @@ export function useVoice(onDone: () => void) {
     : 'Built-in sorter';
 
   return {
-    mode, text, settled: text, interim, finalText, typed, setTyped, supported, starting, source, chip, showTyping, setShowTyping, error, elapsed, items, setItems,
-    engine, sorting, xp, finish, cancel, saveReview: () => saveItems(items, text), removeItem: (i: number) => setItems((l) => l.filter((_, j) => j !== i))
+    mode, text, settled: text, interim, finalText, typed, setTyped, supported, starting, ready, source, chip, showTyping, setShowTyping, error, elapsed, items, setItems,
+    engine, sorting, xp, finish, cancel, saveReview: () => saveItems(items, text), removeItem: (i: number) => setItems((l) => l.filter((_, j) => j !== i)),
+    updateItem: (i: number, patch: Partial<SortItem>) => setItems((l) => l.map((it, j) => (j === i ? { ...it, ...patch } : it)))
   };
 }
 
