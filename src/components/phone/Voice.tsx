@@ -19,7 +19,7 @@ export default function PhoneVoice() {
         </button>
         <span role="status" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600 }}>
           <span style={{ width: 8, height: 8, borderRadius: 99, background: live ? '#FF6B5C' : '#5A6273' }} />
-          {listening ? (live ? `Listening · ${fmtElapsed(v.elapsed)}` : 'Type or dictate') : v.mode === 'review' ? 'Review before saving' : 'Saving…'}
+          {listening ? (v.starting ? 'Connecting…' : live ? `Listening · ${fmtElapsed(v.elapsed)}` : 'Type or dictate') : v.mode === 'review' ? 'Review before saving' : 'Saving…'}
         </span>
         <span style={{ width: 44 }} />
       </div>
@@ -38,7 +38,7 @@ export default function PhoneVoice() {
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <span style={{ fontSize: 11, color: C.muted, letterSpacing: '.06em', textTransform: 'uppercase' }}>
-          Sorted with your tags · {v.engine === 'gemini' ? s.sortModel.replace('Gemini ', '') : 'built-in'}{v.sorting ? ' · …' : ''}
+          Sorted with your tags · {v.chip}{v.sorting ? ' · …' : ''}
         </span>
         {v.items.map((it, i) => {
           const matched = it.type === 'complete' ? state.tasks.find((x) => x.id === it.taskId) : undefined;

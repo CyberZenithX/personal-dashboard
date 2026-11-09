@@ -93,8 +93,8 @@ export default function SettingsPage() {
           </div>
           <p style={{ ...sub, color: C.dim }}>
             {state.aiEngine === 'gemini'
-              ? 'Gemini sorting is on for this deployment.'
-              : 'No Gemini key is set on this deployment, so Daylog sorts with its built-in rules. Add GEMINI_API_KEY to switch Gemini on.'}
+              ? 'Gemini is on: the Voice screen streams your mic to the listening model and sorts the words with the sorting model. If Gemini can’t connect it falls back to browser speech.'
+              : 'No Gemini key is set on this deployment, so Daylog uses browser speech recognition and its built-in sorter. Add GEMINI_API_KEY to switch Gemini on.'}
           </p>
           <div>
             {flag('autoSave', 'Save sorted items straight away', 'Off = review each item before it saves', false)}

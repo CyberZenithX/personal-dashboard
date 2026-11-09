@@ -18,7 +18,25 @@ interface SpeechRecognitionLike {
 }
 type SRCtor = new () => SpeechRecognitionLike;
 
+interface LiveSession {
+  sendRealtimeInput(p: unknown): void;
+  close(): void;
+}
+
 export type VoiceMode = 'listening' | 'review' | 'saving';
+/** Where the words come from: Gemini Live, the browser's speech recognition, or the keyboard. */
+export type VoiceSource = 'live' | 'browser' | 'typed';
+
+const WORKLET = `class P extends AudioWorkletProcessor {
+  process(inputs) { const ch = inputs[0] && inputs[0][0]; if (ch) this.port.postMessage(ch.slice(0)); return true; }
+}
+registerProcessor('pcm-capture', P);`;
+
+function b64(bytes: Uint8Array): string {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
+}
 
 export function useVoice() {
   const { state, act, flash } = useApp();
@@ -27,7 +45,8 @@ export function useVoice() {
   const [finalText, setFinalText] = useState('');
   const [interim, setInterim] = useState('');
   const [typed, setTyped] = useState('');
-  const [supported, setSupported] = useState(true);
+  const [source, setSource] = useState<VoiceSource>('browser');
+  const [starting, setStarting] = useState(true);
   const [showTyping, setShowTyping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
@@ -40,9 +59,14 @@ export function useVoice() {
   const seq = useRef(0);
   const base = useRef('');
   const lastFinal = useRef('');
+  const textRef = useRef('');
+  const live = useRef<{ session: LiveSession; ctx: AudioContext; stream: MediaStream; lastAt: number } | null>(null);
+  const liveText = useRef('');
+  const run = useRef(0);
 
+  const supported = source !== 'typed';
   const text = (supported && !showTyping ? `${finalText} ${interim}` : typed).replace(/\s+/g, ' ').trim();
-  const settled = (supported && !showTyping ? finalText : typed).replace(/\s+/g, ' ').trim();
+  textRef.current = text;
 
   const sortNow = useCallback(async (t: string): Promise<SortItem[]> => {
     const id = ++seq.current;
@@ -62,14 +86,11 @@ export function useVoice() {
     }
   }, []);
 
-  // start recognition
-  useEffect(() => {
+  /* ---------------------------------------------------------- Web Speech */
+  const startBrowser = useCallback((): boolean => {
     const w = window as unknown as { SpeechRecognition?: SRCtor; webkitSpeechRecognition?: SRCtor };
     const Ctor = w.SpeechRecognition || w.webkitSpeechRecognition;
-    if (!Ctor) {
-      setSupported(false);
-      return;
-    }
+    if (!Ctor) return false;
     const r = new Ctor();
     r.continuous = true;
     r.interimResults = true;
@@ -89,7 +110,7 @@ export function useVoice() {
     r.onerror = (e) => {
       if (e.error === 'no-speech' || e.error === 'aborted') return;
       active.current = false;
-      setSupported(false);
+      setSource('typed');
       setError(e.error === 'not-allowed' || e.error === 'service-not-allowed' ? 'Microphone access is blocked. Type instead, or allow the mic in your browser settings.' : "Speech recognition isn't available right now. Type instead.");
     };
     r.onend = () => {
@@ -100,11 +121,161 @@ export function useVoice() {
     };
     rec.current = r;
     active.current = true;
+    setSource('browser');
     try { r.start(); } catch { /* ignore */ }
-    return () => {
-      active.current = false;
-      try { r.abort(); } catch { /* ignore */ }
+    return true;
+  }, []);
+
+  /* ---------------------------------------------------------- Gemini Live */
+  const startLive = useCallback(async (myRun: number): Promise<boolean> => {
+    let stream: MediaStream | null = null;
+    let ctx: AudioContext | null = null;
+    let session: LiveSession | null = null;
+    const stale = () => run.current !== myRun;
+    const release = () => {
+      stream?.getTracks().forEach((t) => t.stop());
+      void ctx?.close().catch(() => {});
+      try { session?.close(); } catch { /* ignore */ }
     };
+    try {
+      const tokRes = await fetch('/api/voice/token', { method: 'POST' });
+      if (stale()) return true;
+      if (!tokRes.ok) return false;
+      const { token, model, textOnly } = (await tokRes.json()) as { token: string; model: string; textOnly: boolean };
+
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
+      } catch {
+        if (stale()) return true;
+        setSource('typed');
+        setError('Microphone access is blocked. Type instead, or allow the mic in your browser settings.');
+        return true; // handled: nothing else to try without a mic
+      }
+      if (stale()) { release(); return true; }
+
+      const { GoogleGenAI, Modality } = await import('@google/genai');
+      const ai = new GoogleGenAI({ apiKey: token, httpOptions: { apiVersion: 'v1alpha' } });
+      let opened = false;
+      let dead = false;
+      session = await ai.live.connect({
+        model,
+        config: {
+          responseModalities: [textOnly ? Modality.TEXT : Modality.AUDIO],
+          inputAudioTranscription: {},
+          systemInstruction: 'You are a silent dictation transcriber. Never speak or answer; the user is dictating notes and tasks.'
+        },
+        callbacks: {
+          onopen: () => { opened = true; },
+          onmessage: (m) => {
+            const t = m.serverContent?.inputTranscription?.text;
+            if (t) {
+              liveText.current += t;
+              if (live.current) live.current.lastAt = Date.now();
+              setFinalText(liveText.current);
+              setInterim('');
+            }
+            if (m.serverContent?.turnComplete && liveText.current && !liveText.current.endsWith(' ')) liveText.current += ' ';
+          },
+          onerror: () => { dead = true; },
+          onclose: () => {
+            dead = true;
+            // dropped mid-dictation: carry on with the browser's recogniser, keeping what we have
+            if (active.current && live.current) {
+              teardownLive();
+              base.current = liveText.current;
+              lastFinal.current = liveText.current;
+              if (!startBrowser()) {
+                setSource('typed');
+                setTyped(liveText.current.trim());
+              }
+            } else if (!opened) {
+              dead = true;
+            }
+          }
+        }
+      });
+      if (stale()) { release(); return true; }
+      if (dead) {
+        release();
+        return false;
+      }
+
+      ctx = new AudioContext();
+      await ctx.audioWorklet.addModule(URL.createObjectURL(new Blob([WORKLET], { type: 'application/javascript' })));
+      if (stale()) { release(); return true; }
+      const src = ctx.createMediaStreamSource(stream);
+      const node = new AudioWorkletNode(ctx, 'pcm-capture');
+      const mute = ctx.createGain();
+      mute.gain.value = 0;
+      src.connect(node).connect(mute).connect(ctx.destination);
+
+      // linear resample to 16 kHz mono PCM16, sent in ~100 ms frames
+      const ratio = ctx.sampleRate / 16000;
+      let pos = 0;
+      let carry = new Float32Array(0);
+      const out: number[] = [];
+      node.port.onmessage = (e: MessageEvent<Float32Array>) => {
+        if (!active.current) return;
+        const inp = new Float32Array(carry.length + e.data.length);
+        inp.set(carry);
+        inp.set(e.data, carry.length);
+        while (pos + 1 < inp.length) {
+          const i0 = Math.floor(pos);
+          const f = pos - i0;
+          const v = inp[i0] * (1 - f) + inp[i0 + 1] * f;
+          out.push(Math.max(-1, Math.min(1, v)) * 0x7fff);
+          pos += ratio;
+        }
+        const used = Math.floor(pos);
+        carry = inp.slice(used);
+        pos -= used;
+        if (out.length >= 1600) {
+          const pcm = new Int16Array(out.splice(0, out.length));
+          try {
+            session?.sendRealtimeInput({ audio: { data: b64(new Uint8Array(pcm.buffer)), mimeType: 'audio/pcm;rate=16000' } });
+          } catch { /* socket closed */ }
+        }
+      };
+
+      live.current = { session: session as LiveSession, ctx, stream, lastAt: Date.now() };
+      active.current = true;
+      setSource('live');
+      return true;
+    } catch (err) {
+      console.warn('[voice] Gemini Live unavailable, falling back', err);
+      release();
+      if (!stale()) live.current = null;
+      return stale();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startBrowser]);
+
+  function teardownLive() {
+    const l = live.current;
+    live.current = null;
+    if (!l) return;
+    try { l.session.close(); } catch { /* ignore */ }
+    l.stream.getTracks().forEach((t) => t.stop());
+    void l.ctx.close().catch(() => {});
+  }
+
+  // choose the listening engine once
+  useEffect(() => {
+    const myRun = ++run.current;
+    (async () => {
+      let ok = false;
+      if (state.aiEngine === 'gemini') ok = await startLive(myRun);
+      if (run.current !== myRun) return;
+      if (!ok && !startBrowser()) setSource('typed');
+      setStarting(false);
+    })();
+    return () => {
+      run.current++;
+      active.current = false;
+      try { rec.current?.abort(); } catch { /* ignore */ }
+      teardownLive();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // timer
@@ -122,9 +293,19 @@ export function useVoice() {
     return () => clearTimeout(t);
   }, [text, mode, sortNow]);
 
-  const stopListening = () => {
+  /** Stop capturing. For Gemini Live this lets the last words finish transcribing first. */
+  const stopListening = async () => {
     active.current = false;
     try { rec.current?.stop(); } catch { /* ignore */ }
+    const l = live.current;
+    if (l) {
+      try { l.session.sendRealtimeInput({ audioStreamEnd: true }); } catch { /* ignore */ }
+      l.stream.getTracks().forEach((t) => t.stop());
+      const start = Date.now();
+      // wait until the transcript has been quiet for ~900 ms (max 4 s)
+      while (Date.now() - start < 4000 && Date.now() - Math.max(l.lastAt, start) < 900) await new Promise((r) => setTimeout(r, 150));
+      teardownLive();
+    }
   };
 
   const saveItems = useCallback(async (list: SortItem[], transcript: string) => {
@@ -136,10 +317,10 @@ export function useVoice() {
 
   const finish = async () => {
     if (mode !== 'listening') return;
-    stopListening();
-    const t = text;
-    if (!t) { flash('Nothing heard'); router.push('/'); return; }
     setMode('saving');
+    await stopListening();
+    const t = textRef.current;
+    if (!t) { flash('Nothing heard'); router.push('/'); return; }
     const list = await sortNow(t);
     if (!list.length) { flash("Couldn't find anything to save"); setMode('review'); return; }
     const s = state.settings;
@@ -149,14 +330,24 @@ export function useVoice() {
   };
 
   const cancel = () => {
-    stopListening();
+    active.current = false;
+    try { rec.current?.abort(); } catch { /* ignore */ }
+    teardownLive();
     router.push('/');
   };
 
   const xp = items.reduce((a, it) => a + (it.type === 'complete' ? state.tasks.find((t) => t.id === it.taskId)?.xp ?? 10 : 5), 0);
 
+  const short = (m: string) => m.replace('Gemini ', '');
+  const s = state.settings;
+  const chip =
+    source === 'live' && engine === 'gemini' ? `${short(s.listenModel)} → ${short(s.sortModel)}`
+    : engine === 'gemini' ? `${source === 'typed' ? 'Typed' : 'Browser speech'} → ${short(s.sortModel)}`
+    : source === 'live' ? `${short(s.listenModel)} → built-in sorter`
+    : 'Built-in sorter';
+
   return {
-    mode, text, settled, interim, finalText, typed, setTyped, supported, showTyping, setShowTyping, error, elapsed, items, setItems,
+    mode, text, settled: text, interim, finalText, typed, setTyped, supported, starting, source, chip, showTyping, setShowTyping, error, elapsed, items, setItems,
     engine, sorting, xp, finish, cancel, saveReview: () => saveItems(items, text), removeItem: (i: number) => setItems((l) => l.filter((_, j) => j !== i))
   };
 }

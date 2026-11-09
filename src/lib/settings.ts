@@ -12,8 +12,20 @@ export const DEFAULT_KEYS: [string, string][] = [
 
 export const TAG_PALETTE = ['#7FB2FF', '#FFC85C', '#FF9E7A', '#D59CFF', '#C6F432', '#5EE0C1'];
 
-export const LISTEN_MODELS = ['Gemini 3 Flash Live', 'Gemini 2.5 Flash Native Audio Dialog', 'Gemini 3.8 Live'];
+export const LISTEN_MODELS = ['Gemini 3 Flash Live', 'Gemini 2.5 Flash Native Audio Dialog', 'Gemini 3.8 Live', 'Gemini 3.5 Transcribe Live'];
 export const SORT_MODELS = ['Gemini 3.5 Flash Lite', 'Gemini 3 Flash'];
+
+/** Settings label -> Gemini API model ID (verified against the live ListModels endpoint). */
+export const LISTEN_MODEL_IDS: Record<string, string> = {
+  'Gemini 3 Flash Live': 'gemini-3.1-flash-live-preview',
+  'Gemini 2.5 Flash Native Audio Dialog': 'gemini-2.5-flash-native-audio-preview-12-2025',
+  'Gemini 3.8 Live': 'gemini-3.8-live',
+  'Gemini 3.5 Transcribe Live': 'gemini-3.5-transcribe-live'
+};
+export const SORT_MODEL_IDS: Record<string, string> = {
+  'Gemini 3.5 Flash Lite': 'gemini-3.5-flash-lite',
+  'Gemini 3 Flash': 'gemini-3-flash-preview'
+};
 
 export const DEFAULT_SETTINGS: Settings = {
   pages: { Tasks: true, Notes: true, Calendar: true },

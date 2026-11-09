@@ -48,11 +48,11 @@ export default function Voice() {
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ width: 10, height: 10, borderRadius: 99, background: listening && v.supported && !v.showTyping ? '#FF6B5C' : '#5A6273' }} />
             <span style={{ fontSize: 14, fontWeight: 600 }} role="status">
-              {listening ? (v.supported && !v.showTyping ? `Listening · ${fmtElapsed(v.elapsed)}` : 'Type or dictate') : v.mode === 'review' ? 'Review before saving' : 'Saving…'}
+              {listening ? (v.starting ? 'Connecting…' : v.supported && !v.showTyping ? `Listening · ${fmtElapsed(v.elapsed)}` : 'Type or dictate') : v.mode === 'review' ? 'Review before saving' : 'Saving…'}
             </span>
           </div>
           <span style={{ fontSize: 12, color: C.muted, padding: '6px 10px', borderRadius: 99, border: `1px solid ${C.border2}` }}>
-            {v.engine === 'gemini' ? `Sorted by ${s.sortModel.replace('Gemini ', '')}` : 'Built-in sorter'}
+            {v.chip}
           </span>
         </div>
 

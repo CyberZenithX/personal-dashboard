@@ -19,11 +19,13 @@ for desktop and mobile (installable as a PWA).
    | `APP_PASSWORD` | yes | The single password that unlocks your Daylog |
    | `AUTH_SECRET` | recommended | Signs the session cookie. `openssl rand -hex 32` |
    | `APP_USER_NAME` | no | Name in the Today greeting (default `Abubakar`) |
-   | `GEMINI_API_KEY` | no | Turns on Gemini sorting of voice/typed items (see below) |
-   | `GEMINI_MODEL_FLASH_LITE` / `GEMINI_MODEL_FLASH` | no | Model IDs behind the two "Sorting model" options |
+   | `GEMINI_API_KEY` | no | Turns on Gemini Live voice transcription and Gemini sorting (see below) |
+   | `GEMINI_LIVE_MODEL`, `GEMINI_MODEL_FLASH_LITE`, `GEMINI_MODEL_FLASH` | no | Override the model IDs behind the Settings dropdowns |
 
 4. **Deploy.** `npm run build` runs `db/schema.sql` against Neon first (idempotent), then builds Next.
 5. Open the URL, enter your password. On a phone use *Add to Home Screen* to install it.
+
+`GEMINI_API_KEY=… node scripts/live-test.mjs` checks the Live pipeline from the command line (synthesises speech, mints a token, streams it, prints the transcript).
 
 Optional demo data that mirrors the mock-ups: `DATABASE_URL=… npm run db:seed` (only seeds an empty DB; `-- --force` wipes first).
 
@@ -45,7 +47,11 @@ unless `APP_PASSWORD` is set. Copy `.env.example` to `.env.local` to point at Ne
   (`src/lib/progress.ts`, `src/lib/levels.ts`). Every log counts as a check-in; the daily goal is configurable.
 - **Quick add** understands dates, times and hashtags: `Pay DEWA bill fri 6pm #life`. Untagged items are sorted into
   your hashtags automatically.
-- **Voice capture:** browser speech recognition → sorted into tasks / notes / events / "done with X" → saved.
+- **Voice capture:** with `GEMINI_API_KEY` set, the Voice screen streams your mic to a **Gemini Live** model (the
+  "Listening model" setting) and shows the transcript as you speak; the words are then sorted by the "Sorting model" into
+  tasks / notes / events / "done with X" and saved. The server only mints short-lived single-use tokens
+  (`/api/voice/token`), so the API key never reaches the browser. If Gemini can't connect it falls back to the browser's
+  speech recognition, then to a text box (works with keyboard dictation).
 - **Shortcuts** (rebindable): T, N, E, Space, X, Shift+→, Ctrl+K search. Phone: swipe a task right to finish,
   left to push to tomorrow, press and hold for more.
 - **Settings:** pages on/off, hashtags (they drive the classifier), themes unlocked by level, density, week start,
@@ -54,13 +60,16 @@ unless `APP_PASSWORD` is set. Copy `.env.example` to `.env.local` to point at Ne
 
 ## Honest notes / limitations
 
-- **Gemini:** with `GEMINI_API_KEY` set, sorting uses a structured-JSON Gemini call whose schema enum is built from your
-  hashtags. The "Sorting model" labels in Settings are mapped to the model IDs in the env vars above (defaults:
-  `gemini-2.5-flash-lite`, `gemini-2.5-flash`) — set them to whichever models your key can use. Without a key a built-in
-  rule-based sorter is used (the Voice screen says which one). **The Gemini path has not been exercised against the live API.**
-- **Speech-to-text** uses the browser's Web Speech API (Chrome/Edge/Safari). The "Listening model" setting is stored but
-  does not select a model, and there is no audio recording/playback of voice notes. If the browser can't listen, the Voice
-  screen offers a text box (works with keyboard dictation).
+- **Gemini models** (verified against the live `ListModels` endpoint): Listening — Gemini 3 Flash Live =
+  `gemini-3.1-flash-live-preview`, Gemini 3.8 Live = `gemini-3.8-live`, Gemini 2.5 Flash Native Audio Dialog =
+  `gemini-2.5-flash-native-audio-preview-12-2025`, and an extra option, Gemini 3.5 Transcribe Live =
+  `gemini-3.5-transcribe-live` (transcription only: no spoken replies, so it is the cheapest). Sorting — Gemini 3.5 Flash
+  Lite = `gemini-3.5-flash-lite`, Gemini 3 Flash = `gemini-3-flash-preview`. Several of these are *preview* models and
+  Google may rename or retire them; override IDs with `GEMINI_LIVE_MODEL`, `GEMINI_MODEL_FLASH_LITE`, `GEMINI_MODEL_FLASH`.
+  Ephemeral-token support in the SDK is marked experimental by Google. Live models other than transcribe-live also
+  generate spoken replies that Daylog discards, which uses extra tokens.
+- Without a Gemini key everything still works: browser speech recognition + a rule-based sorter (the Voice screen's chip
+  says which pipeline is active). There is no audio recording/playback of voice notes.
 - **Reminders** are browser notifications that fire while Daylog is open or installed; there is no server push.
 - Single user: one password, one database. Notebooks on the Notes screen follow your note hashtags.
 - Time zone is taken from the browser and saved in settings; day boundaries (streaks, quests) use it.

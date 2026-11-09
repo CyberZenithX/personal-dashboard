@@ -4,7 +4,7 @@
  *    user's own hashtags (Settings → Hashtags).
  *  - Without it: a deterministic rule-based sorter, so the app works offline / keyless.
  */
-import { buildPrompt } from './settings';
+import { buildPrompt, SORT_MODEL_IDS } from './settings';
 import { normalizeTag, parseQuick } from './parse';
 import { DOW_LONG, dow } from './time';
 import type { Settings, SortItem, Task } from './types';
@@ -14,8 +14,8 @@ export function aiEngine(): 'gemini' | 'local' {
 }
 
 function geminiModelId(label: string): string {
-  const lite = process.env.GEMINI_MODEL_FLASH_LITE || 'gemini-2.5-flash-lite';
-  const flash = process.env.GEMINI_MODEL_FLASH || 'gemini-2.5-flash';
+  const lite = process.env.GEMINI_MODEL_FLASH_LITE || SORT_MODEL_IDS['Gemini 3.5 Flash Lite'];
+  const flash = process.env.GEMINI_MODEL_FLASH || SORT_MODEL_IDS['Gemini 3 Flash'];
   return /lite/i.test(label) ? lite : flash;
 }
 
