@@ -117,7 +117,7 @@ export default function Voice({ onClose, overlay }: { onClose: () => void; overl
             </div>
           )}
           {v.supported && listening && (
-            <button type="button" onClick={() => v.setShowTyping(!v.showTyping)} style={{ border: 'none', background: 'transparent', color: C.muted, fontSize: 13, textDecoration: 'underline' }}>
+            <button type="button" onClick={() => v.setShowTyping(!v.showTyping)} style={{ border: 'none', background: 'transparent', color: C.muted, fontSize: 13, textDecoration: 'underline', minHeight: 32, padding: '6px 8px' }}>
               {v.showTyping ? 'Use the microphone' : 'Type instead'}
             </button>
           )}

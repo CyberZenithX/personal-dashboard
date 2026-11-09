@@ -210,8 +210,17 @@ export function NoteDetail({ note, onDeleted, compact }: { note: Note; onDeleted
       </div>
 
       <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'center', gap: 10, fontSize: 12, color: C.dim }}>
-        <span style={{ width: 8, height: 8, borderRadius: 99, background: C.accent }} />
-        Saved · this note earned <strong style={{ color: C.accent }}>+5 XP</strong>
+        {editing ? (
+          <>
+            <span style={{ width: 8, height: 8, borderRadius: 99, background: C.amber }} />
+            Unsaved changes · {compact ? 'tap Save to keep them' : 'Ctrl + Enter to save, Esc to cancel'}
+          </>
+        ) : (
+          <>
+            <span style={{ width: 8, height: 8, borderRadius: 99, background: C.accent }} />
+            Saved · this note earned <strong style={{ color: C.accent }}>+5 XP</strong>
+          </>
+        )}
       </div>
     </div>
   );

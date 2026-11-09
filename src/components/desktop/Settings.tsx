@@ -1,6 +1,6 @@
 'use client';
 import type { CSSProperties, ReactNode } from 'react';
-import { DataActions, PromptPreview, ShortcutsEditor, TagGroup, ToggleRow } from '../settingsParts';
+import { DataActions, NotifyRow, onReminderToggle, PromptPreview, ShortcutsEditor, TagGroup, ToggleRow } from '../settingsParts';
 import { DesktopNav } from '../Nav';
 import { useApp } from '../store';
 import { C, HEAD } from '../ui';
@@ -29,7 +29,7 @@ export default function SettingsPage() {
   const s = state.settings;
   const level = state.progress.level;
   const flag = (k: keyof Flags, label: string, desc: string, divider = true) => (
-    <ToggleRow key={k} label={label} desc={desc} on={s.flags[k]} divider={divider} onChange={() => setSettings({ flags: { [k]: !s.flags[k] } })} />
+    <ToggleRow key={k} label={label} desc={desc} on={s.flags[k]} divider={divider} onChange={() => { onReminderToggle(k, !s.flags[k]); setSettings({ flags: { [k]: !s.flags[k] } }); }} />
   );
   const seg = <K extends 'density' | 'week' | 'time'>(label: string, key: K, opts: Settings[K][]) => (
     <div role="radiogroup" aria-label={label} style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -99,7 +99,7 @@ export default function SettingsPage() {
           <div>
             {flag('autoSave', 'Save sorted items straight away', 'Off = review each item before it saves', false)}
             {flag('matchTasks', 'Tick off tasks when I say I did them', '"Done with the gym" completes Gym — legs')}
-            {flag('confirm', 'Ask before creating calendar events', 'Shows a confirm card for anything with a time')}
+            {flag('confirm', 'Review voice items that have a time', 'When something you say or type into Voice has a time, check it before it’s saved')}
           </div>
           <PromptPreview />
         </Section>
@@ -151,6 +151,7 @@ export default function SettingsPage() {
           {flag('nudges', 'Check-in nudges', 'A ping if you haven’t logged in 4 hours')}
           {flag('evening', 'Evening check-in', '"What was the best part of today?"')}
           {flag('weekly', 'Sunday weekly review', 'A short recap of your week')}
+          <NotifyRow />
           <label style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '14px 0', borderTop: '1px solid #22262F', fontSize: 15, fontWeight: 600 }}>
             <span style={{ flex: 1 }}>Evening check-in time</span>
             <input type="time" value={s.eveningTime} onChange={(e) => e.target.value && setSettings({ eveningTime: e.target.value })} style={{ padding: '9px 12px', borderRadius: 10, background: C.bg, border: '1px solid #3A404D', color: '#fff', fontSize: 14, colorScheme: 'dark' }} />

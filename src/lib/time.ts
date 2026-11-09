@@ -71,6 +71,7 @@ export function fmtTime(hhmm: string | null | undefined, mode: '24h' | '12h'): s
 }
 
 export function fmtMin(min: number, mode: '24h' | '12h'): string {
+  if (min >= 1440) return mode === '24h' ? '24:00' : '12am'; // an event that runs to midnight
   return fmtTime(minToHhmm(min), mode);
 }
 

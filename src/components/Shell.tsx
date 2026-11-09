@@ -68,12 +68,7 @@ function useReminders() {
   const { state, tz, today } = useApp();
   const ref = useRef({ state, tz, today });
   ref.current = { state, tz, today };
-  const f = state.settings.flags;
-  useEffect(() => {
-    if ((f.nudges || f.evening || f.weekly) && typeof Notification !== 'undefined' && Notification.permission === 'default') {
-      void Notification.requestPermission().catch(() => {});
-    }
-  }, [f.nudges, f.evening, f.weekly]);
+  // Permission is asked from Settings (a click), never on page load.
   useEffect(() => {
     const fire = (key: string, title: string, body: string) => {
       try {
@@ -90,7 +85,13 @@ function useReminders() {
       const evening = hhmmToMin(eveningTime) ?? 1260;
       if (flags.evening && min >= evening && min < evening + 120) fire(`dl-evening-${today}`, 'Evening check-in', 'What was the best part of today?');
       if (flags.nudges && min >= 9 * 60 && min <= 21 * 60) {
-        const lastLog = Math.max(0, ...state.tasks.map((t) => Date.parse(t.createdAt)), ...state.notes.map((n) => Date.parse(n.createdAt)), ...state.voiceLogs.map((v) => Date.parse(v.createdAt)));
+        // anything you did counts: adding or finishing a task, a note, a voice log
+        const lastLog = Math.max(
+          0,
+          ...state.tasks.map((t) => Math.max(Date.parse(t.createdAt), t.doneAt ? Date.parse(t.doneAt) : 0)),
+          ...state.notes.map((n) => Math.max(Date.parse(n.createdAt), Date.parse(n.updatedAt))),
+          ...state.voiceLogs.map((v) => Date.parse(v.createdAt))
+        );
         if (Date.now() - lastLog > 4 * 3600000) fire(`dl-nudge-${today}-${Math.floor(min / 240)}`, 'Daylog', 'Nothing logged for a while. What’s happening right now?');
       }
       if (flags.weekly && new Date(now.toLocaleString('en-US', { timeZone: tz })).getDay() === 0 && min >= 18 * 60) {

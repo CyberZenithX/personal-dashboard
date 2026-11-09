@@ -1,5 +1,5 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Modal } from './CaptureSheet';
 import { keyState, comboFromEvent } from './keys';
 import { useApp } from './store';
@@ -260,7 +260,7 @@ export function DataActions(_props: { phone?: boolean }) {
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
         <a href="/api/export" download style={{ ...btn, color: C.text, textDecoration: 'none', display: 'flex', alignItems: 'center' }}>Export everything (JSON)</a>
         <button type="button" style={btn} onClick={() => file.current?.click()}>Import from Todoist / CSV</button>
-        <input ref={file} type="file" accept=".csv,.json,text/csv,application/json" hidden onChange={(e) => onFile(e.target.files?.[0])} />
+        <input ref={file} type="file" aria-label="Choose a Todoist CSV or JSON file to import" accept=".csv,.json,text/csv,application/json" hidden onChange={(e) => onFile(e.target.files?.[0])} />
         <button type="button" disabled aria-disabled="true" title="Google Calendar sync is coming soon" style={{ ...btn, color: C.dim, borderStyle: 'dashed', display: 'flex', alignItems: 'center', gap: 10, opacity: 0.85 }}>
           Connect Google Calendar
           <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '.04em', padding: '3px 8px', borderRadius: 99, background: '#2A1D12', color: C.accent2 }}>COMING SOON</span>
@@ -284,5 +284,49 @@ export function DataActions(_props: { phone?: boolean }) {
         </Modal>
       )}
     </>
+  );
+}
+
+/* ------------------------------------------------------------ notifications */
+
+const REMINDER_FLAGS = ['nudges', 'evening', 'weekly'];
+
+/** Ask for notification permission — only ever from a click (browsers ignore or penalise it otherwise). */
+export function askNotifications(): void {
+  try {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') void Notification.requestPermission().catch(() => {});
+  } catch { /* not supported */ }
+}
+
+/** Call from a toggle's click: turning a reminder on asks for permission in the same gesture. */
+export function onReminderToggle(flag: string, turningOn: boolean): void {
+  if (turningOn && REMINDER_FLAGS.includes(flag)) askNotifications();
+}
+
+/** Shows whether the browser will let reminders through, with a button to ask. */
+export function NotifyRow() {
+  const [perm, setPerm] = useState<string>('default');
+  useEffect(() => {
+    setPerm(typeof Notification === 'undefined' ? 'unsupported' : Notification.permission);
+  }, []);
+  const ask = async () => {
+    try {
+      setPerm(await Notification.requestPermission());
+    } catch { /* ignore */ }
+  };
+  const text =
+    perm === 'granted' ? 'Notifications are on for this browser.'
+    : perm === 'denied' ? 'Notifications are blocked. Allow them for this site in your browser settings to get reminders.'
+    : perm === 'unsupported' ? 'This browser can’t show notifications. On iPhone, add Daylog to your Home Screen first.'
+    : 'Reminders need permission to show notifications.';
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 0', borderTop: '1px solid #22262F', flexWrap: 'wrap' }}>
+      <span role="status" style={{ flex: '1 1 220px', fontSize: 13, color: perm === 'granted' ? C.accent : perm === 'denied' ? '#FF9E92' : C.muted }}>{text}</span>
+      {perm === 'default' && (
+        <button type="button" onClick={ask} style={{ padding: '9px 14px', minHeight: 40, borderRadius: 10, border: `1px solid ${C.accent}`, background: 'transparent', color: C.accent, fontSize: 13, fontWeight: 700 }}>
+          Allow notifications
+        </button>
+      )}
+    </div>
   );
 }

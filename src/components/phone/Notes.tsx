@@ -42,7 +42,7 @@ export default function PhoneNotes() {
         </div>
         <label htmlFor="msearch" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 14px', borderRadius: 12, background: C.surface, border: `1px solid ${C.border2}` }}>
           <Svg d={ICON.search} size={16} sw={2.2} color={C.dim} />
-          <input id="msearch" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search everything" style={{ flex: 1, minWidth: 0, padding: '13px 0', background: 'transparent', border: 'none', color: '#fff', fontSize: 16, outline: 'none' }} />
+          <input id="msearch" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search notes" style={{ flex: 1, minWidth: 0, padding: '13px 0', background: 'transparent', border: 'none', color: '#fff', fontSize: 16, outline: 'none' }} />
         </label>
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', margin: '0 -20px', padding: '0 20px', flex: 'none' }}>
           {['All', ...s.noteTags.map((t) => t[0]), 'From voice'].map((c) => (
