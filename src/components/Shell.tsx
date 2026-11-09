@@ -18,6 +18,11 @@ function isTyping(t: EventTarget | null): boolean {
   return el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT' || el.isContentEditable;
 }
 
+function isControl(t: EventTarget | null): boolean {
+  const el = t as HTMLElement | null;
+  return !!el?.closest?.('button, a[href], summary, [role="button"], [role="switch"], [role="tab"], [role="option"], [role="radio"], [role="checkbox"], [role="menuitem"]');
+}
+
 /** Global keyboard shortcuts (bindings come from Settings → Shortcuts). */
 function useShortcuts() {
   const app = useApp();
@@ -37,6 +42,8 @@ function useShortcuts() {
       const typing = isTyping(e.target);
       const hasModifier = combo.includes('Ctrl') || combo.includes('Alt');
       if (typing && !hasModifier) return;
+      // Space and Enter press the focused button/link/switch — never steal them from it.
+      if ((e.key === ' ' || e.key === 'Enter') && !hasModifier && isControl(e.target)) return;
       if (document.querySelector('[aria-modal="true"]') && idx !== 6) return;
       const sel = app.selectedTask;
       switch (idx) {

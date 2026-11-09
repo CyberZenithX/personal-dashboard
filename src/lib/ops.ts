@@ -30,16 +30,18 @@ export interface TaskInput {
 export async function createTask(c: Ctx, input: TaskInput): Promise<number> {
   let title = input.title.trim();
   let tag = normalizeTag(input.tag);
+  // `undefined` = not chosen (detection may fill it in); `null` = explicitly "no date" / "no time".
   let dueDate = input.dueDate ?? null;
   let dueTime = input.dueTime ?? null;
   if (input.parse) {
     const p = parseQuick(title, c.today);
     if (p.title) title = p.title;
     tag ??= normalizeTag(p.tag);
-    dueDate ??= p.date;
-    dueTime ??= p.time;
-    if (!dueDate && input.defaultToday) dueDate = c.today;
+    if (input.dueDate === undefined) dueDate = p.date;
+    if (input.dueTime === undefined) dueTime = p.time;
+    if (!dueDate && input.defaultToday && input.dueDate === undefined) dueDate = c.today;
   }
+  if (!dueDate) dueTime = null;
   if (!title) throw new Error('Title is required');
   if (!tag && !input.tag) tag = await classifyTag(title, 'task', c.settings);
   const prio: Prio = input.prio ?? 'low';

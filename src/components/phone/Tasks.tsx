@@ -9,11 +9,13 @@ import { allTagColor, dueLabel } from '@/lib/view';
 const GROUP_COLOR: Record<string, string> = { Overdue: '#FF9E7A', Today: 'var(--accent)' };
 
 /** Swipe right = finish, left = push to tomorrow, long-press = actions. */
-function SwipeRow({ task, children }: { task: Task; children: ReactNode }) {
-  const { toggleTask, act, openTaskMenu } = useApp();
+export function SwipeRow({ task, children }: { task: Task; children: ReactNode }) {
+  const { toggleTask, act, openTaskMenu, flash } = useApp();
   const start = useRef<{ x: number; y: number } | null>(null);
   const press = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const long = useRef(false);
+  /** set after a long-press or swipe so the tap that follows doesn't also tick the task */
+  const suppress = useRef(false);
   const [dx, setDx] = useState(0);
   const horizontal = useRef(false);
 
@@ -28,7 +30,7 @@ function SwipeRow({ task, children }: { task: Task; children: ReactNode }) {
           const t = e.touches[0];
           start.current = { x: t.clientX, y: t.clientY };
           long.current = false;
-          press.current = setTimeout(() => { long.current = true; navigator.vibrate?.(10); openTaskMenu(task.id); }, 550);
+          press.current = setTimeout(() => { long.current = true; suppress.current = true; navigator.vibrate?.(10); openTaskMenu(task.id); }, 550);
         }}
         onTouchMove={(e) => {
           if (!start.current) return;
@@ -43,8 +45,20 @@ function SwipeRow({ task, children }: { task: Task; children: ReactNode }) {
           const wasLong = long.current;
           reset();
           if (wasLong) return;
-          if (moved > 80) toggleTask(task.id);
-          else if (moved < -80) void act('PATCH', `/api/tasks/${task.id}`, { pushDays: 1 });
+          if (Math.abs(moved) > 10) suppress.current = true;
+          if (moved > 80) {
+            if (task.done) flash(`Marked not done · ${task.title}`);
+            toggleTask(task.id);
+          } else if (moved < -80) {
+            void act('PATCH', `/api/tasks/${task.id}`, { pushDays: 1 }).then((r) => r && flash(`Pushed to tomorrow · ${task.title}`));
+          }
+        }}
+        onClickCapture={(e) => {
+          if (suppress.current) {
+            suppress.current = false;
+            e.preventDefault();
+            e.stopPropagation();
+          }
         }}
         onTouchCancel={reset}
         onContextMenu={(e) => e.preventDefault()}
@@ -57,7 +71,7 @@ function SwipeRow({ task, children }: { task: Task; children: ReactNode }) {
 }
 
 export default function PhoneTasks() {
-  const { state, today, tz, toggleTask, openCapture } = useApp();
+  const { state, today, tz, toggleTask, openCapture, openTaskMenu } = useApp();
   const s = state.settings;
   const q = state.progress.overdueQuest;
   const [view, setView] = useState<'Today' | 'Upcoming' | 'Done'>('Today');
@@ -98,7 +112,8 @@ export default function PhoneTasks() {
             <h2 style={{ margin: 0, padding: '4px 4px 2px', fontSize: 12, fontWeight: 700, color: GROUP_COLOR[grp.label] ?? C.muted, letterSpacing: '.06em', textTransform: 'uppercase' }}>{grp.label} · {grp.items.length}</h2>
             {grp.items.map((t) => (
               <SwipeRow key={t.id} task={t}>
-                <button type="button" onClick={() => toggleTask(t.id)} aria-pressed={t.done} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, background: t.done ? C.accentRow2 : C.surface, border: 'none', color: C.text, textAlign: 'left', minHeight: 56, transition: 'background .25s' }}>
+                <div style={{ display: 'flex', alignItems: 'center', borderRadius: 12, background: t.done ? C.accentRow2 : C.surface, transition: 'background .25s' }}>
+                <button type="button" onClick={() => toggleTask(t.id)} aria-pressed={t.done} aria-label={`${t.done ? 'Mark not done' : 'Complete'}: ${t.title}`} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, background: 'transparent', border: 'none', color: C.text, textAlign: 'left', minHeight: 56 }}>
                   <span style={{ width: 24, height: 24, borderRadius: 99, border: `2px solid ${t.done ? C.accent : '#4A5160'}`, background: t.done ? C.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
                     {t.done && <Svg d={ICON.check} size={13} sw={3.5} color="var(--bg)" />}
                   </span>
@@ -108,13 +123,17 @@ export default function PhoneTasks() {
                       {dueLabel(t, today, tz, s.time)} · <span style={{ color: allTagColor(s, t.tag) }}>{t.tag ?? 'untagged'}</span>
                     </span>
                   </span>
-                  <span style={{ width: 8, height: 8, borderRadius: 3, background: PRIO_COLOR[t.prio], flex: 'none' }} />
+                  <span title={`${t.prio} priority`} style={{ width: 8, height: 8, borderRadius: 3, background: PRIO_COLOR[t.prio], flex: 'none' }} />
                 </button>
+                <button type="button" aria-label={`Edit, reschedule or delete: ${t.title}`} onClick={() => openTaskMenu(t.id)} style={{ width: 44, height: 44, marginRight: 6, flex: 'none', borderRadius: 10, border: 'none', background: 'transparent', color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Svg d={ICON.dots} size={18} sw={3} />
+                </button>
+                </div>
               </SwipeRow>
             ))}
           </section>
         ))}
-        <span style={{ fontSize: 12, color: C.dim, textAlign: 'center' }}>Swipe a task right to finish, left to push to tomorrow. Press and hold for more.</span>
+        <span style={{ fontSize: 12, color: C.dim, paddingRight: 76, lineHeight: 1.5 }}>Swipe a task right to finish, left to push to tomorrow. Tap ⋯ to edit, change its tag or date, or delete it.</span>
       </div>
 
       <button type="button" aria-label="Add task" onClick={() => openCapture({ type: 'task' })} style={{ position: 'fixed', right: 20, bottom: 'calc(104px + env(safe-area-inset-bottom))', width: 56, height: 56, borderRadius: 18, border: 'none', background: C.blue, color: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(127,178,255,.3)', zIndex: 15 }}>

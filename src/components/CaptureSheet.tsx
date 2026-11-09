@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
-import { addDays, DOW_SHORT, minToHhmm, weekStart } from '@/lib/time';
+import { parseQuick } from '@/lib/parse';
+import { addDays, DOW_SHORT, fmtTime, minToHhmm, shortDate, weekStart } from '@/lib/time';
 import type { EventKind } from '@/lib/types';
 import { useApp, type CaptureReq } from './store';
 import { C, HEAD, Pill, Svg, ICON } from './ui';
@@ -10,6 +11,7 @@ const inputStyle: CSSProperties = {
   fontSize: 16, fontFamily: 'inherit', outline: 'none', width: '100%', colorScheme: 'dark'
 };
 const labelStyle: CSSProperties = { fontSize: 12, color: C.muted };
+const linkBtn: CSSProperties = { border: 'none', background: 'transparent', color: C.muted, fontSize: 13, textDecoration: 'underline', padding: '6px 2px', minHeight: 32 };
 
 export function Modal({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
   const { phone } = useApp();
@@ -49,7 +51,7 @@ export function CaptureSheet() {
 }
 
 function Inner({ req, onClose }: { req: CaptureReq; onClose: () => void }) {
-  const { state, today, act } = useApp();
+  const { state, today, act, flash } = useApp();
   const s = state.settings;
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => ref.current?.focus(), []);
@@ -60,8 +62,15 @@ function Inner({ req, onClose }: { req: CaptureReq; onClose: () => void }) {
   const [tag, setTag] = useState<string | null>(req.type === 'task' ? req.tag ?? null : null);
 
   // task
-  const [when, setWhen] = useState<'Today' | 'Tomorrow' | 'This week' | 'Pick date'>('Today');
+  const [when, setWhen] = useState<'No date' | 'Today' | 'Tomorrow' | 'This week' | 'Pick date'>('No date');
   const [touched, setTouched] = useState(false);
+  const [literal, setLiteral] = useState(false);
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 4000);
+    return () => clearTimeout(t);
+  }, [armed]);
   const [date, setDate] = useState(req.type === 'event' && req.date ? req.date : today);
   const [time, setTime] = useState('');
 
@@ -89,6 +98,7 @@ function Inner({ req, onClose }: { req: CaptureReq; onClose: () => void }) {
       if (!title.trim()) return setBusy(false);
       const explicit: Record<string, unknown> = {};
       if (touched) {
+        if (when === 'No date') explicit.dueDate = null;
         if (when === 'Today') explicit.dueDate = today;
         if (when === 'Tomorrow') explicit.dueDate = addDays(today, 1);
         if (when === 'This week') explicit.dueDate = addDays(weekStart(today, s.week), 6);
@@ -97,7 +107,8 @@ function Inner({ req, onClose }: { req: CaptureReq; onClose: () => void }) {
           explicit.dueTime = time || null;
         }
       }
-      ok = !!(await act('POST', '/api/tasks', { title, tag, parse: true, defaultToday: !touched, ...explicit }));
+      // An explicit "When" choice wins over anything detected in the title; "Ignore" keeps the title literal.
+      ok = !!(await act('POST', '/api/tasks', { title, tag, parse: !literal, ...explicit }));
     } else if (req.type === 'note') {
       if (!title.trim() && !body.trim()) return setBusy(false);
       ok = !!(await act('POST', '/api/notes', { title, body, tag, source: req.evening ? 'evening' : 'typed' }));
@@ -146,11 +157,29 @@ function Inner({ req, onClose }: { req: CaptureReq; onClose: () => void }) {
 
         {req.type === 'task' && (
           <>
-            <span style={{ ...labelStyle, marginTop: -8 }}>Tip: type “fri 6pm #work” and Daylog fills in the date, time and tag.</span>
+            {(() => {
+              const p = literal ? null : parseQuick(title, today);
+              const bits = p ? [!touched && p.date ? shortDate(p.date) : null, p.time && (!touched || when !== 'No date') ? fmtTime(p.time, s.time) : null, p.tag].filter(Boolean) : [];
+              if (literal) {
+                return (
+                  <span style={{ ...labelStyle, marginTop: -8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+                    Saving the title exactly as typed.
+                    <button type="button" onClick={() => setLiteral(false)} style={linkBtn}>Detect date and time again</button>
+                  </span>
+                );
+              }
+              if (!bits.length) return <span style={{ ...labelStyle, marginTop: -8 }}>Tip: type “fri 6pm #work” and Daylog fills in the date, time and tag.</span>;
+              return (
+                <span aria-live="polite" style={{ marginTop: -8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap', fontSize: 13, color: C.accent }}>
+                  Detected: {bits.join(' · ')}
+                  <button type="button" onClick={() => setLiteral(true)} style={linkBtn}>Ignore</button>
+                </span>
+              );
+            })()}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <span style={labelStyle}>When</span>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {(['Today', 'Tomorrow', 'This week', 'Pick date'] as const).map((w) => (
+                {(['No date', 'Today', 'Tomorrow', 'This week', 'Pick date'] as const).map((w) => (
                   <Pill key={w} on={when === w} onClick={() => { setWhen(w); setTouched(true); }}>{w}</Pill>
                 ))}
               </div>
@@ -209,11 +238,17 @@ function Inner({ req, onClose }: { req: CaptureReq; onClose: () => void }) {
         <div style={{ display: 'flex', gap: 10 }}>
           {editing && (
             <button
-              type="button" aria-label="Delete event" disabled={busy}
-              onClick={async () => { setBusy(true); if (await act('DELETE', `/api/events/${editing.id}`)) onClose(); setBusy(false); }}
-              style={{ padding: 14, borderRadius: 14, border: '1px solid #5C2A24', background: 'transparent', color: '#FF9E92', display: 'flex', alignItems: 'center' }}
+              type="button" aria-label={armed ? 'Confirm delete' : editing.repeatDays?.length ? 'Delete habit (every day it repeats)' : 'Delete event'} disabled={busy}
+              onClick={async () => {
+                if (!armed) return setArmed(true);
+                setBusy(true);
+                if (await act('DELETE', `/api/events/${editing.id}`)) { flash(editing.repeatDays?.length ? 'Habit deleted' : 'Event deleted'); onClose(); }
+                setBusy(false);
+              }}
+              style={{ padding: armed ? '14px 16px' : 14, borderRadius: 14, border: `1px solid ${armed ? '#FF7A6B' : '#5C2A24'}`, background: armed ? '#FF7A6B' : 'transparent', color: armed ? '#1E1412' : '#FF9E92', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, fontWeight: 700 }}
             >
               <Svg d={ICON.trash} size={18} />
+              {armed && 'Delete?'}
             </button>
           )}
           <button type="button" onClick={onClose} style={{ flex: 1, padding: 14, borderRadius: 14, border: '1px solid #3A404D', background: 'transparent', color: C.text, fontSize: 15, fontWeight: 600 }}>
@@ -223,6 +258,11 @@ function Inner({ req, onClose }: { req: CaptureReq; onClose: () => void }) {
             {cta}
           </button>
         </div>
+        {armed && editing && (
+          <span role="alert" style={{ fontSize: 12, color: '#FF9E92', marginTop: -6 }}>
+            {editing.repeatDays?.length ? 'This removes the habit from every day it repeats. Tap Delete? again to confirm.' : 'Tap Delete? again to confirm.'}
+          </span>
+        )}
       </form>
     </Modal>
   );

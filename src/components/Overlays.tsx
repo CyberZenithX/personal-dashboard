@@ -1,7 +1,10 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { rewardsAt } from '@/lib/levels';
+import { addDays } from '@/lib/time';
+import type { Task } from '@/lib/types';
+import { allTagColor } from '@/lib/view';
 import { Modal } from './CaptureSheet';
 import { useApp } from './store';
 import { C, HEAD, ICON, Pill, Svg } from './ui';
@@ -30,40 +33,119 @@ export function Toast() {
 /* --------------------------------------------------------------- task menu */
 
 export function TaskMenu() {
-  const { menuTaskId, openTaskMenu, state, act } = useApp();
+  const { menuTaskId, openTaskMenu, state } = useApp();
   const task = state.tasks.find((t) => t.id === menuTaskId);
-  const [title, setTitle] = useState('');
-  useEffect(() => setTitle(task?.title ?? ''), [task?.id, task?.title]);
   if (!task) return null;
-  const close = () => openTaskMenu(null);
-  const run = async (fn: () => Promise<unknown>) => { await fn(); close(); };
-  const btn = { padding: '13px 14px', borderRadius: 12, border: '1px solid #2D3240', background: 'transparent', color: C.text, fontSize: 14, fontWeight: 600, textAlign: 'left' as const, minHeight: 48 };
+  return <TaskEditor key={task.id} task={task} onClose={() => openTaskMenu(null)} />;
+}
+
+type When = 'none' | 'today' | 'tomorrow' | 'pick';
+
+/** Edit everything about a task: title, date, time, tag, priority. Delete needs a second tap. */
+function TaskEditor({ task, onClose }: { task: Task; onClose: () => void }) {
+  const { state, today, act, flash } = useApp();
+  const s = state.settings;
+  const tomorrow = addDays(today, 1);
+  const initialWhen: When = !task.dueDate ? 'none' : task.dueDate === today ? 'today' : task.dueDate === tomorrow ? 'tomorrow' : 'pick';
+  const [title, setTitle] = useState(task.title);
+  const [when, setWhen] = useState<When>(initialWhen);
+  const [date, setDate] = useState(task.dueDate ?? today);
+  const [time, setTime] = useState(task.dueTime ?? '');
+  const [tag, setTag] = useState<string | null>(task.tag);
+  const [prio, setPrio] = useState(task.prio);
+  const [busy, setBusy] = useState(false);
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 4000);
+    return () => clearTimeout(t);
+  }, [armed]);
+
+  const dueDate = when === 'none' ? null : when === 'today' ? today : when === 'tomorrow' ? tomorrow : date || null;
+  const dueTime = dueDate && time ? time : null;
+  const tagChoices = [...s.taskTags.map((t) => t[0]), ...(task.tag && !s.taskTags.some((t) => t[0] === task.tag) ? [task.tag] : [])];
+
+  const run = async (method: 'PATCH' | 'DELETE', body?: unknown, msg?: string) => {
+    if (busy) return;
+    setBusy(true);
+    const r = await act(method, `/api/tasks/${task.id}`, body);
+    setBusy(false);
+    if (r) {
+      if (msg && !r.toast) flash(msg);
+      onClose();
+    }
+  };
+
+  const save = () => {
+    const patch: Record<string, unknown> = {};
+    if (title.trim() && title.trim() !== task.title) patch.title = title.trim();
+    if (dueDate !== task.dueDate) patch.dueDate = dueDate;
+    if (dueTime !== task.dueTime) patch.dueTime = dueTime;
+    if (tag !== task.tag) patch.tag = tag;
+    if (prio !== task.prio) patch.prio = prio;
+    if (!Object.keys(patch).length) return onClose();
+    void run('PATCH', patch, 'Task updated');
+  };
+
+  const label: CSSProperties = { fontSize: 12, color: C.muted };
+  const field: CSSProperties = { padding: 12, borderRadius: 12, background: C.bg, border: '1px solid #3A404D', color: '#fff', fontSize: 15, outline: 'none', colorScheme: 'dark', minWidth: 0 };
+  const btn: CSSProperties = { padding: '13px 14px', borderRadius: 12, border: '1px solid #2D3240', background: 'transparent', color: C.text, fontSize: 14, fontWeight: 600, minHeight: 48 };
   return (
-    <Modal label="Task actions" onClose={close}>
-      <form
-        onSubmit={(e) => { e.preventDefault(); if (title.trim() && title !== task.title) void run(() => act('PATCH', `/api/tasks/${task.id}`, { title })); else close(); }}
-        style={{ display: 'flex', flexDirection: 'column', gap: 12 }}
-      >
+    <Modal label="Edit task" onClose={onClose}>
+      <form onSubmit={(e) => { e.preventDefault(); save(); }} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <label htmlFor="tm-title" style={{ fontFamily: HEAD, fontSize: 18, fontWeight: 700 }}>Edit task</label>
-        <input
-          id="tm-title" value={title} onChange={(e) => setTitle(e.target.value)}
-          style={{ padding: 14, borderRadius: 12, background: C.bg, border: '1px solid #3A404D', color: '#fff', fontSize: 16, outline: 'none' }}
-        />
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          {(['high', 'med', 'low'] as const).map((p) => (
-            <Pill key={p} on={task.prio === p} onClick={() => run(() => act('PATCH', `/api/tasks/${task.id}`, { prio: p }))}>
-              {p === 'high' ? 'High' : p === 'med' ? 'Medium' : 'Low'} priority
-            </Pill>
-          ))}
+        <input id="tm-title" value={title} onChange={(e) => setTitle(e.target.value)} autoComplete="off" style={{ ...field, padding: 14, fontSize: 16 }} />
+
+        <div role="group" aria-label="When" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={label}>When</span>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {([['none', 'No date'], ['today', 'Today'], ['tomorrow', 'Tomorrow'], ['pick', 'Pick date']] as const).map(([k, l]) => (
+              <Pill key={k} on={when === k} onClick={() => setWhen(k)}>{l}</Pill>
+            ))}
+          </div>
+          {when !== 'none' && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              {when === 'pick' && <input aria-label="Due date" type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ ...field, flex: '1 1 150px' }} />}
+              <input aria-label="Due time (optional)" type="time" value={time} onChange={(e) => setTime(e.target.value)} style={{ ...field, flex: '0 1 130px' }} />
+              {time && <button type="button" onClick={() => setTime('')} style={{ ...btn, minHeight: 44, padding: '10px 12px', color: C.muted }}>No time</button>}
+            </div>
+          )}
         </div>
-        <button type="submit" style={{ ...btn, background: C.accent, color: 'var(--bg)', border: 'none', textAlign: 'center', fontWeight: 700 }}>Save name</button>
-        <button type="button" style={btn} onClick={() => run(() => act('PATCH', `/api/tasks/${task.id}`, { pushDays: 1 }))}>Push to tomorrow</button>
-        <button
-          type="button" style={{ ...btn, borderColor: '#5C2A24', color: '#FF9E92' }}
-          onClick={() => run(() => act('DELETE', `/api/tasks/${task.id}`))}
-        >
-          Delete task
-        </button>
+
+        <div role="group" aria-label="Tag" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={label}>Tag</span>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Pill on={tag === null} onClick={() => setTag(null)}>Untagged</Pill>
+            {tagChoices.map((t) => <Pill key={t} on={tag === t} onClick={() => setTag(t)} color={allTagColor(s, t)}>{t}</Pill>)}
+          </div>
+        </div>
+
+        <div role="group" aria-label="Priority" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <span style={label}>Priority</span>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {(['high', 'med', 'low'] as const).map((p) => (
+              <Pill key={p} on={prio === p} onClick={() => setPrio(p)}>{p === 'high' ? 'High' : p === 'med' ? 'Medium' : 'Low'}</Pill>
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button type="button" onClick={onClose} style={{ ...btn, flex: 1 }}>Cancel</button>
+          <button type="submit" disabled={busy} style={{ ...btn, flex: 2, background: C.accent, color: 'var(--bg)', border: 'none', fontWeight: 700, opacity: busy ? 0.7 : 1 }}>Save changes</button>
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          <button type="button" disabled={busy} style={{ ...btn, flex: 1 }} onClick={() => run('PATCH', { pushDays: 1 }, 'Pushed to tomorrow')}>Push to tomorrow</button>
+          <button
+            type="button" disabled={busy}
+            style={{ ...btn, flex: 1, borderColor: armed ? '#FF7A6B' : '#5C2A24', background: armed ? '#FF7A6B' : 'transparent', color: armed ? '#1E1412' : '#FF9E92' }}
+            onClick={() => (armed ? run('DELETE', undefined, 'Task deleted') : setArmed(true))}
+          >
+            {armed ? 'Tap again to delete' : 'Delete task'}
+          </button>
+        </div>
+        <span aria-live="polite" style={{ fontSize: 12, color: C.dim, minHeight: 16 }}>
+          {armed ? `Deleting also takes back the ${task.done ? task.xp + 5 : 5} XP this task earned.` : ''}
+        </span>
       </form>
     </Modal>
   );

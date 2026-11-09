@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react';
 import type { Note } from '@/lib/types';
 import { allTagColor, kindLabel, noteWhen } from '@/lib/view';
 import { useApp } from './store';
-import { C, HEAD, ICON, Svg } from './ui';
+import { C, HEAD, ICON, Pill, Svg } from './ui';
 
 const typeColor = { Task: '#7FB2FF', Event: '#D59CFF' } as const;
 
@@ -14,14 +14,34 @@ export function NoteDetail({ note, onDeleted, compact }: { note: Note; onDeleted
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [picker, setPicker] = useState(false);
+  const [tagOpen, setTagOpen] = useState(false);
+  /** 'auto' = let the sorter pick; null = untagged; otherwise the chosen tag */
+  const [tagChoice, setTagChoice] = useState<string | null>(note.tag);
 
-  useEffect(() => { setEditing(false); setPicker(false); }, [note.id]);
+  useEffect(() => { setEditing(false); setPicker(false); setTagOpen(false); }, [note.id]);
 
-  const startEdit = () => { setTitle(note.title); setBody(note.body); setEditing(true); setPicker(false); };
+  // The note-edit shortcut must not collide with a global one (E is "New event" by default).
+  const editKey = s.keys.includes('E') ? 'Enter' : 'E';
+  const tagChoices = [...s.noteTags.map((t) => t[0]), ...(note.tag && !s.noteTags.some((t) => t[0] === note.tag) ? [note.tag] : [])];
+
+  const startEdit = () => { setTitle(note.title); setBody(note.body); setTagChoice(note.tag); setEditing(true); setPicker(false); setTagOpen(false); };
   const save = async () => {
-    const r = await act('PATCH', `/api/notes/${note.id}`, { title, body, reclassify: true });
+    const r = await act('PATCH', `/api/notes/${note.id}`, tagChoice === 'auto' ? { title, body, reclassify: true } : { title, body, tag: tagChoice });
     if (r) setEditing(false);
   };
+  const setTagNow = async (t: string | null | 'auto') => {
+    setTagOpen(false);
+    if (t === note.tag) return;
+    const r = await act('PATCH', `/api/notes/${note.id}`, t === 'auto' ? { reclassify: true } : { tag: t });
+    if (r) flash(t === 'auto' ? 'Tag re-sorted' : t ? `Tagged ${t}` : 'Tag removed');
+  };
+  const tagPills = (current: string | null | 'auto', pick: (t: string | null | 'auto') => void, withAuto: boolean) => (
+    <div role="group" aria-label="Tag" style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+      {withAuto && <Pill on={current === 'auto'} onClick={() => pick('auto')}>Auto-sort</Pill>}
+      <Pill on={current === null} onClick={() => pick(null)}>Untagged</Pill>
+      {tagChoices.map((t) => <Pill key={t} on={current === t} onClick={() => pick(t)} color={allTagColor(s, t)}>{t}</Pill>)}
+    </div>
+  );
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -29,15 +49,20 @@ export function NoteDetail({ note, onDeleted, compact }: { note: Note; onDeleted
       if (editing) {
         if (e.key === 'Escape') setEditing(false);
         if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); void save(); }
-      } else if (!typing && !compact && e.key.toLowerCase() === 'e' && !e.ctrlKey && !e.metaKey && !e.altKey && s.keys[2] !== 'E' && !document.querySelector('[aria-modal="true"]')) {
-        e.preventDefault();
-        startEdit();
+      } else if (!compact && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey && !document.querySelector('[aria-modal="true"]')) {
+        const t = e.target as HTMLElement | null;
+        const interactive = typing || !!t?.closest?.('button, a, [role="button"], [role="option"], [contenteditable="true"]');
+        const hit = editKey === 'Enter' ? e.key === 'Enter' : e.key.toLowerCase() === 'e';
+        if (hit && !interactive) {
+          e.preventDefault();
+          startEdit();
+        }
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [editing, title, body, note.id]);
+  }, [editing, title, body, tagChoice, note.id, editKey]);
 
   const linked = new Set(note.links.map((l) => l.label));
   const options = [
@@ -52,7 +77,12 @@ export function NoteDetail({ note, onDeleted, compact }: { note: Note; onDeleted
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, flex: 1 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-          <span style={{ padding: '5px 10px', borderRadius: 99, background: C.surface2, color, fontSize: 12, fontWeight: 700 }}>{kindLabel(note.tag)}</span>
+          <button
+            type="button" onClick={() => setTagOpen((v) => !v)} aria-expanded={tagOpen} aria-label={`Tag: ${note.tag ?? 'untagged'}. Change tag`}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 10px', minHeight: 32, borderRadius: 99, border: `1px solid ${tagOpen ? C.accent : 'transparent'}`, background: C.surface2, color, fontSize: 12, fontWeight: 700 }}
+          >
+            {kindLabel(note.tag)}<Svg d="M6 9l6 6 6-6" size={12} sw={2.6} />
+          </button>
           <span style={{ fontSize: 13, color: C.dim }}>{noteWhen(note, today, tz, s.time)}{note.tag ? ` · ${note.tag.slice(1)}` : ''}</span>
           {note.source === 'voice' && (
             <span style={{ fontSize: 12, color: C.muted, padding: '4px 10px', borderRadius: 99, border: `1px solid ${C.border2}` }}>
@@ -63,7 +93,7 @@ export function NoteDetail({ note, onDeleted, compact }: { note: Note; onDeleted
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {!editing && (
             <button type="button" onClick={startEdit} style={{ ...btn, border: '1px solid #5A6273', background: '#1C2029', color: '#fff' }}>
-              <Svg d={ICON.pencil} size={16} sw={2.2} color={C.amber} />Edit{compact ? '' : ' · E'}
+              <Svg d={ICON.pencil} size={16} sw={2.2} color={C.amber} />Edit{compact ? '' : ` · ${editKey}`}
             </button>
           )}
           <button type="button" onClick={() => act('PATCH', `/api/notes/${note.id}`, { toTask: true })} style={btn}>
@@ -82,10 +112,17 @@ export function NoteDetail({ note, onDeleted, compact }: { note: Note; onDeleted
         </div>
       </div>
 
+      {tagOpen && !editing && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 14, borderRadius: 14, background: C.surface, border: `1px solid ${C.border2}`, maxWidth: 680 }}>
+          <span style={{ fontSize: 12, color: C.dim }}>Change tag</span>
+          {tagPills(note.tag, setTagNow, true)}
+        </div>
+      )}
+
       {!editing ? (
         <>
-          <h2 style={{ margin: 0, fontFamily: HEAD, fontSize: compact ? 28 : 34, lineHeight: 1.2 }}>{note.title}</h2>
-          <p style={{ margin: 0, fontSize: 16, lineHeight: 1.75, color: '#D4D9E2', maxWidth: 680, whiteSpace: 'pre-line' }}>{note.body}</p>
+          <h2 onDoubleClick={startEdit} style={{ margin: 0, fontFamily: HEAD, fontSize: compact ? 28 : 34, lineHeight: 1.2 }}>{note.title}</h2>
+          <p onDoubleClick={startEdit} style={{ margin: 0, fontSize: 16, lineHeight: 1.75, color: '#D4D9E2', maxWidth: 680, whiteSpace: 'pre-line' }}>{note.body}</p>
         </>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12, maxWidth: 680 }}>
@@ -93,10 +130,12 @@ export function NoteDetail({ note, onDeleted, compact }: { note: Note; onDeleted
           <input id="edtitle" value={title} onChange={(e) => setTitle(e.target.value)} autoFocus style={{ padding: '10px 14px', borderRadius: 12, background: '#14171D', border: '1px solid #5A6273', color: '#fff', fontFamily: HEAD, fontSize: 30, fontWeight: 700, outline: 'none', minWidth: 0 }} />
           <label htmlFor="edbody" style={{ position: 'absolute', left: -9999 }}>Note</label>
           <textarea id="edbody" value={body} onChange={(e) => setBody(e.target.value)} rows={8} style={{ padding: 14, borderRadius: 12, background: '#14171D', border: '1px solid #5A6273', color: C.text, fontFamily: 'inherit', fontSize: 16, lineHeight: 1.7, resize: 'vertical', outline: 'none' }} />
+          <span style={{ fontSize: 12, color: C.dim }}>Tag</span>
+          {tagPills(tagChoice, setTagChoice, true)}
           <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
             <button type="button" onClick={save} style={{ padding: '11px 18px', borderRadius: 10, border: 'none', background: C.accent, color: 'var(--bg)', fontSize: 14, fontWeight: 700 }}>Save{compact ? '' : ' · Ctrl + Enter'}</button>
             <button type="button" onClick={() => setEditing(false)} style={{ padding: '11px 18px', borderRadius: 10, border: `1px solid ${C.border2}`, background: 'transparent', color: C.text, fontSize: 14, fontWeight: 600 }}>Cancel{compact ? '' : ' · Esc'}</button>
-            <span style={{ fontSize: 12, color: C.dim }}>Saving re-sorts the tag{state.aiEngine === 'gemini' ? ` with ${s.sortModel}` : ''}</span>
+            {tagChoice === 'auto' && <span style={{ fontSize: 12, color: C.dim }}>Saving re-sorts the tag{state.aiEngine === 'gemini' ? ` with ${s.sortModel}` : ''}</span>}
           </div>
         </div>
       )}

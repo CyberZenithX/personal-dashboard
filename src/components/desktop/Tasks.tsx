@@ -37,8 +37,9 @@ export default function Tasks() {
   const [tag, setTag] = useState('All');
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
+  const [literal, setLiteral] = useState(false);
 
-  const parsed = useMemo(() => parseQuick(draft, today), [draft, today]);
+  const parsed = useMemo(() => (literal ? { title: draft, tag: null, date: null, time: null } : parseQuick(draft, today)), [draft, today, literal]);
   const visible = state.tasks.filter((t) => tag === 'All' || t.tag === tag);
   const groups = groupTasks(visible, view, today, tz);
   const doneTodayCount = state.tasks.filter((t) => t.done && t.doneAt && ymd(new Date(t.doneAt), tz) === today).length;
@@ -56,13 +57,14 @@ export default function Tasks() {
     e.preventDefault();
     if (!draft.trim() || busy) return;
     setBusy(true);
-    const r = await act('POST', '/api/tasks', { title: draft, parse: true, defaultToday: true });
+    const r = await act('POST', '/api/tasks', { title: draft, parse: !literal });
     setBusy(false);
-    if (r) setDraft('');
+    if (r) { setDraft(''); setLiteral(false); }
   };
 
   const keyHint = (i: number) => (s.keys[i] === 'Space' ? 'Hold Space' : s.keys[i]);
-  const whenPill = parsed.date ? dueLabel({ dueDate: parsed.date, dueTime: parsed.time, done: false, doneAt: null } as Task, today, tz, s.time) : 'Today';
+  const whenPill = parsed.date ? dueLabel({ dueDate: parsed.date, dueTime: parsed.time, done: false, doneAt: null } as Task, today, tz, s.time) : 'No date';
+  const detected = !!(parsed.date || parsed.tag);
 
   return (
     <div style={{ minHeight: '100dvh', background: C.bg, color: C.text, display: 'flex', flexWrap: 'wrap', position: 'relative' }}>
@@ -96,8 +98,15 @@ export default function Tasks() {
               placeholder="Add a task — e.g. Pay DEWA bill fri #life"
               style={{ flex: '1 1 260px', minWidth: 0, padding: '10px 0', background: 'transparent', border: 'none', color: '#fff', fontSize: 15, outline: 'none' }}
             />
-            <span style={{ fontSize: 12, color: parsed.date ? C.accent : C.dim, padding: '6px 10px', borderRadius: 8, border: `1px solid ${C.border2}` }}>{whenPill}</span>
-            <span style={{ fontSize: 12, color: parsed.tag ? C.accent : C.dim, padding: '6px 10px', borderRadius: 8, border: `1px solid ${C.border2}` }}>{parsed.tag ?? '#tag'}</span>
+            <span aria-live="polite" style={{ display: 'contents' }}>
+              <span style={{ fontSize: 12, color: parsed.date ? C.accent : C.dim, padding: '6px 10px', borderRadius: 8, border: `1px solid ${C.border2}`, textDecoration: literal ? 'line-through' : 'none' }}>{whenPill}</span>
+              <span style={{ fontSize: 12, color: parsed.tag ? C.accent : C.dim, padding: '6px 10px', borderRadius: 8, border: `1px solid ${C.border2}` }}>{parsed.tag ?? '#tag'}</span>
+            </span>
+            {(detected || literal) && (
+              <button type="button" onClick={() => setLiteral(!literal)} title={literal ? 'Detect the date, time and tag from what you typed' : 'Save the title exactly as typed, with no date, time or tag'} style={{ padding: '6px 10px', borderRadius: 8, border: `1px solid ${C.border2}`, background: 'transparent', color: C.muted, fontSize: 12, minHeight: 32 }}>
+                {literal ? 'Detect' : 'Ignore'}
+              </button>
+            )}
             <button type="submit" disabled={busy} style={{ padding: '10px 16px', borderRadius: 10, border: 'none', background: C.accent, color: 'var(--bg)', fontWeight: 700, fontSize: 13 }}>Add · Enter</button>
           </form>
 
