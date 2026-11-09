@@ -82,7 +82,7 @@ export default function SettingsPage() {
           <ShortcutsEditor />
         </Section>
 
-        <Section id="ai" title="4. Voice and AI" desc="Which Gemini models listen and sort. The prompt below rebuilds itself from your hashtags." gap={14}>
+        <Section id="ai" title="4. Voice and AI" desc="Which Gemini models listen and sort. If the listening model can’t connect, the other Live models are tried in the order listed, then browser speech. The prompt below rebuilds itself from your hashtags." gap={14}>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
             <label style={{ display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 600 }}>Listening model
               <select value={s.listenModel} onChange={(e) => setSettings({ listenModel: e.target.value })} style={select}>{LISTEN_MODELS.map((m) => <option key={m}>{m}</option>)}</select>

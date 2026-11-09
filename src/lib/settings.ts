@@ -12,7 +12,8 @@ export const DEFAULT_KEYS: [string, string][] = [
 
 export const TAG_PALETTE = ['#7FB2FF', '#FFC85C', '#FF9E7A', '#D59CFF', '#C6F432', '#5EE0C1'];
 
-export const LISTEN_MODELS = ['Gemini 3 Flash Live', 'Gemini 2.5 Flash Native Audio Dialog', 'Gemini 3.8 Live', 'Gemini 3.5 Transcribe Live'];
+/** First = main model; when a model can't connect the rest are tried in this order. */
+export const LISTEN_MODELS = ['Gemini 3.5 Transcribe Live', 'Gemini 3 Flash Live', 'Gemini 3.8 Live', 'Gemini 2.5 Flash Native Audio Dialog'];
 export const SORT_MODELS = ['Gemini 3.5 Flash Lite', 'Gemini 3 Flash'];
 
 /** Settings label -> Gemini API model ID (verified against the live ListModels endpoint). */
@@ -42,7 +43,7 @@ export const DEFAULT_SETTINGS: Settings = {
     ['#content', '#C6F432']
   ],
   keys: DEFAULT_KEYS.map((k) => k[1]),
-  listenModel: LISTEN_MODELS[0],
+  listenModel: 'Gemini 3.5 Transcribe Live',
   sortModel: SORT_MODELS[0],
   flags: {
     autoSave: true,

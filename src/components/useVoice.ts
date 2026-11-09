@@ -53,6 +53,7 @@ export function useVoice() {
   const [items, setItems] = useState<SortItem[]>([]);
   const [engine, setEngine] = useState<'gemini' | 'local'>(state.aiEngine);
   const [sorting, setSorting] = useState(false);
+  const [usedModel, setUsedModel] = useState<string | null>(null);
 
   const rec = useRef<SpeechRecognitionLike | null>(null);
   const active = useRef(false);
@@ -127,7 +128,7 @@ export function useVoice() {
   }, []);
 
   /* ---------------------------------------------------------- Gemini Live */
-  const startLive = useCallback(async (myRun: number): Promise<boolean> => {
+  async function startLive(myRun: number, attempt = 0): Promise<boolean> {
     let stream: MediaStream | null = null;
     let ctx: AudioContext | null = null;
     let session: LiveSession | null = null;
@@ -138,10 +139,10 @@ export function useVoice() {
       try { session?.close(); } catch { /* ignore */ }
     };
     try {
-      const tokRes = await fetch('/api/voice/token', { method: 'POST' });
+      const tokRes = await fetch('/api/voice/token', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ attempt }) });
       if (stale()) return true;
-      if (!tokRes.ok) return false;
-      const { token, model, textOnly } = (await tokRes.json()) as { token: string; model: string; textOnly: boolean };
+      if (!tokRes.ok) return false; // no key, or every Live model has been tried
+      const { token, model, label, textOnly } = (await tokRes.json()) as { token: string; model: string; label: string; textOnly: boolean };
 
       try {
         stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true } });
@@ -179,15 +180,19 @@ export function useVoice() {
           onerror: () => { dead = true; },
           onclose: () => {
             dead = true;
-            // dropped mid-dictation: carry on with the browser's recogniser, keeping what we have
+            // dropped mid-dictation: continue on the next Live model, then the browser's recogniser,
+            // keeping the words captured so far
             if (active.current && live.current) {
               teardownLive();
-              base.current = liveText.current;
-              lastFinal.current = liveText.current;
-              if (!startBrowser()) {
-                setSource('typed');
-                setTyped(liveText.current.trim());
-              }
+              void startLive(myRun, attempt + 1).then((ok) => {
+                if (ok || run.current !== myRun || !active.current) return;
+                base.current = liveText.current;
+                lastFinal.current = liveText.current;
+                if (!startBrowser()) {
+                  setSource('typed');
+                  setTyped(liveText.current.trim());
+                }
+              });
             } else if (!opened) {
               dead = true;
             }
@@ -197,7 +202,8 @@ export function useVoice() {
       if (stale()) { release(); return true; }
       if (dead) {
         release();
-        return false;
+        console.warn(`[voice] ${label} could not connect, trying the next model`);
+        return startLive(myRun, attempt + 1);
       }
 
       ctx = new AudioContext();
@@ -240,15 +246,16 @@ export function useVoice() {
       live.current = { session: session as LiveSession, ctx, stream, lastAt: Date.now() };
       active.current = true;
       setSource('live');
+      setUsedModel(label);
       return true;
     } catch (err) {
-      console.warn('[voice] Gemini Live unavailable, falling back', err);
+      console.warn('[voice] Gemini Live attempt failed', attempt, err);
       release();
-      if (!stale()) live.current = null;
-      return stale();
+      if (stale()) return true;
+      live.current = null;
+      return startLive(myRun, attempt + 1);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startBrowser]);
+  }
 
   function teardownLive() {
     const l = live.current;
@@ -341,9 +348,9 @@ export function useVoice() {
   const short = (m: string) => m.replace('Gemini ', '');
   const s = state.settings;
   const chip =
-    source === 'live' && engine === 'gemini' ? `${short(s.listenModel)} → ${short(s.sortModel)}`
+    source === 'live' && engine === 'gemini' ? `${short(usedModel ?? s.listenModel)} → ${short(s.sortModel)}`
     : engine === 'gemini' ? `${source === 'typed' ? 'Typed' : 'Browser speech'} → ${short(s.sortModel)}`
-    : source === 'live' ? `${short(s.listenModel)} → built-in sorter`
+    : source === 'live' ? `${short(usedModel ?? s.listenModel)} → built-in sorter`
     : 'Built-in sorter';
 
   return {

@@ -52,6 +52,9 @@ unless `APP_PASSWORD` is set. Copy `.env.example` to `.env.local` to point at Ne
   tasks / notes / events / "done with X" and saved. The server only mints short-lived single-use tokens
   (`/api/voice/token`), so the API key never reaches the browser. If Gemini can't connect it falls back to the browser's
   speech recognition, then to a text box (works with keyboard dictation).
+  **Main model:** `Gemini 3.5 Transcribe Live` (default). If it can't connect, the other Live models are tried in order
+  (3 Flash Live → 3.8 Live → 2.5 Native Audio), then browser speech. A connection that drops mid-dictation continues on the
+  next model without losing the words so far. Picking a different main model in Settings reorders the chain.
 - **Shortcuts** (rebindable): T, N, E, Space, X, Shift+→, Ctrl+K search. Phone: swipe a task right to finish,
   left to push to tomorrow, press and hold for more.
 - **Settings:** pages on/off, hashtags (they drive the classifier), themes unlocked by level, density, week start,
@@ -62,7 +65,7 @@ unless `APP_PASSWORD` is set. Copy `.env.example` to `.env.local` to point at Ne
 
 - **Gemini models** (verified against the live `ListModels` endpoint): Listening — Gemini 3 Flash Live =
   `gemini-3.1-flash-live-preview`, Gemini 3.8 Live = `gemini-3.8-live`, Gemini 2.5 Flash Native Audio Dialog =
-  `gemini-2.5-flash-native-audio-preview-12-2025`, and an extra option, Gemini 3.5 Transcribe Live =
+  `gemini-2.5-flash-native-audio-preview-12-2025`, plus an extra option that is now the default, Gemini 3.5 Transcribe Live =
   `gemini-3.5-transcribe-live` (transcription only: no spoken replies, so it is the cheapest). Sorting — Gemini 3.5 Flash
   Lite = `gemini-3.5-flash-lite`, Gemini 3 Flash = `gemini-3-flash-preview`. Several of these are *preview* models and
   Google may rename or retire them; override IDs with `GEMINI_LIVE_MODEL`, `GEMINI_MODEL_FLASH_LITE`, `GEMINI_MODEL_FLASH`.

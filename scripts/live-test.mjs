@@ -8,7 +8,7 @@ import { GoogleGenAI, Modality } from '@google/genai';
 
 const key = process.env.GEMINI_API_KEY;
 if (!key) throw new Error('Set GEMINI_API_KEY');
-const models = process.argv.slice(2).length ? process.argv.slice(2) : ['gemini-3.1-flash-live-preview', 'gemini-3.8-live', 'gemini-2.5-flash-native-audio-preview-12-2025', 'gemini-3.5-transcribe-live'];
+const models = process.argv.slice(2).length ? process.argv.slice(2) : ['gemini-3.5-transcribe-live', 'gemini-3.1-flash-live-preview', 'gemini-3.8-live', 'gemini-2.5-flash-native-audio-preview-12-2025'];
 const SENTENCE = 'Remind me to send the clinic quote Tuesday morning, and put a call with Bilal on Thursday at four.';
 
 async function tts() {
