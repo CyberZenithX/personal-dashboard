@@ -1,7 +1,7 @@
 'use client';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useApp } from '../store';
-import { C, ICON, Svg } from '../ui';
+import { C, ICON, Svg, useDialogFocus, visuallyHidden } from '../ui';
 import { fmtElapsed, useVoice } from '../useVoice';
 import { fmtTime, shortDate } from '@/lib/time';
 import type { SortItem } from '@/lib/types';
@@ -22,8 +22,10 @@ export function itemSub(it: SortItem, mode: '24h' | '12h', title?: string): stri
   return bits.join(' · ') || (it.type === 'note' ? 'Untagged' : 'No date');
 }
 
-export default function Voice() {
-  const v = useVoice();
+export default function Voice({ onClose, overlay }: { onClose: () => void; overlay?: boolean }) {
+  const v = useVoice(onClose);
+  const box = useRef<HTMLDivElement>(null);
+  useDialogFocus(box);
   const { state } = useApp();
   const s = state.settings;
   const lastIsNote = v.items.length > 0 && v.items[v.items.length - 1].type === 'note';
@@ -31,7 +33,8 @@ export default function Voice() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') v.cancel();
-      if (e.key === 'Enter' && (e.target as HTMLElement).tagName !== 'TEXTAREA') {
+      const t = e.target as HTMLElement;
+      if (e.key === 'Enter' && t.tagName !== 'TEXTAREA' && !t.closest('button, a, [role="button"]')) {
         e.preventDefault();
         void (v.mode === 'review' ? v.saveReview() : v.finish());
       }
@@ -42,8 +45,9 @@ export default function Voice() {
 
   const listening = v.mode === 'listening';
   return (
-    <div style={{ minHeight: '100dvh', background: '#07080B', color: C.text, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 16px' }}>
-      <div role="dialog" aria-label="Voice capture" style={{ width: '100%', maxWidth: 880, borderRadius: 24, background: '#14171D', border: '1px solid #262B36', padding: 36, display: 'flex', flexDirection: 'column', gap: 28 }}>
+    <div style={{ minHeight: '100dvh', background: overlay ? 'rgba(5,6,8,.86)' : '#07080B', color: C.text, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '48px 16px' }}>
+      <div ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="voice-h" style={{ outline: 'none', width: '100%', maxWidth: 880, borderRadius: 24, background: '#14171D', border: '1px solid #262B36', padding: 36, display: 'flex', flexDirection: 'column', gap: 28 }}>
+        <h1 id="voice-h" style={visuallyHidden}>Voice capture</h1>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ width: 10, height: 10, borderRadius: 99, background: listening && v.supported && !v.showTyping ? '#FF6B5C' : '#5A6273' }} />

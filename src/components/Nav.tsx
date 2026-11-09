@@ -92,8 +92,8 @@ const TABS = [
   { label: 'Progress', href: '/progress', d: ICON.progress }
 ];
 
-export function PhoneTabs({ active }: { active: string }) {
-  const { state } = useApp();
+export function PhoneTabs({ active }: { active?: string }) {
+  const { state, openVoice } = useApp();
   const pages = state.settings.pages as Record<string, boolean>;
   const tabs = TABS.filter((t) => pages[t.label] !== false);
   return (
@@ -107,14 +107,8 @@ export function PhoneTabs({ active }: { active: string }) {
       {tabs.map((tb) => {
         const mic = tb.label === 'Talk';
         const on = tb.label === active;
-        return (
-          <Link
-            key={tb.label} href={tb.href} aria-label={tb.label}
-            style={{
-              flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '6px 0',
-              color: mic ? 'var(--bg)' : on ? C.accent : C.dim, fontSize: 11, fontWeight: 600, textDecoration: 'none', minHeight: 48
-            }}
-          >
+        const inner = (
+          <>
             <span
               style={{
                 width: mic ? 58 : 26, height: mic ? 58 : 26, marginTop: mic ? -28 : 0, borderRadius: 99,
@@ -125,7 +119,16 @@ export function PhoneTabs({ active }: { active: string }) {
               <Svg d={tb.d} size={22} sw={2.2} />
             </span>
             {mic ? '' : tb.label}
-          </Link>
+          </>
+        );
+        const style = {
+          flex: 1, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 4, padding: '6px 0', border: 'none', background: 'transparent',
+          color: mic ? 'var(--bg)' : on ? C.accent : C.dim, fontSize: 11, fontWeight: 600, textDecoration: 'none', minHeight: 48
+        };
+        return mic ? (
+          <button key={tb.label} type="button" onClick={openVoice} aria-label="Talk: log something by voice" style={style}>{inner}</button>
+        ) : (
+          <Link key={tb.label} href={tb.href} aria-current={on ? 'page' : undefined} style={style}>{inner}</Link>
         );
       })}
     </nav>

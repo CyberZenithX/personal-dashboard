@@ -55,9 +55,10 @@ html:hover, *:hover { scrollbar-color: #5A6273 transparent; }
 @keyframes pop { 0% { transform: scale(.6); opacity: 0; } 60% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
 @keyframes rise { 0% { transform: translateY(0); opacity: 1; } 100% { transform: translateY(-60px); opacity: 0; } }
 @keyframes toastIn { 0% { transform: translateY(12px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
+@keyframes voiceIn { 0% { opacity: 0; transform: scale(.985); } 100% { opacity: 1; transform: none; } }
 @keyframes sheetIn { 0% { transform: translateY(40px); opacity: 0; } 100% { transform: translateY(0); opacity: 1; } }
 
-.row-actions { opacity: 0; transition: opacity .15s; }
+.row-actions { opacity: .5; transition: opacity .15s; }
 *:hover > .row-actions, *:focus-within > .row-actions, .row-actions:focus-visible { opacity: 1; }
 @media (hover: none) { .row-actions { opacity: 1; } }
 

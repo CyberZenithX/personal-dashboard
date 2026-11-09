@@ -7,7 +7,7 @@ import { DOW_SHORT, dow, fmtMin, fmtTime, hhmmToMin, minutesOfDay, MONTH_SHORT, 
 import { eventsOn } from '@/lib/view';
 
 export default function PhoneToday() {
-  const { state, today, tz, toggleTask, openCapture } = useApp();
+  const { state, today, tz, toggleTask, openCapture, openVoice } = useApp();
   const s = state.settings;
   const p = state.progress;
   const day = p.days[today];
@@ -37,7 +37,7 @@ export default function PhoneToday() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
             <span style={{ fontSize: 12, color: C.muted, textTransform: 'uppercase', letterSpacing: '.05em' }}>{DOW_SHORT[dow(today)]} · {d} {MONTH_SHORT[m - 1]}</span>
-            <span style={{ fontFamily: HEAD, fontSize: 24, fontWeight: 700 }}>Today</span>
+            <h1 style={{ margin: 0, fontFamily: HEAD, fontSize: 24, fontWeight: 700 }}>Today</h1>
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 10px', borderRadius: 99, background: '#2A1D12', color: C.accent2, fontSize: 13, fontWeight: 700 }}>
@@ -71,7 +71,7 @@ export default function PhoneToday() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
               <span style={{ fontSize: 13, fontWeight: 600, color: '#C3C9D4' }}>Up next</span>
-              {s.pages.Calendar && <Link href="/calendar" style={{ fontSize: 12, textDecoration: 'none' }}>Calendar</Link>}
+              {s.pages.Calendar && <Link href="/calendar" style={{ fontSize: 12, textDecoration: 'none', padding: '8px 4px', margin: '-8px -4px' }}>Calendar</Link>}
             </div>
             <div style={{ padding: 14, borderRadius: 14, background: '#2A1C33', color: '#E7C8FF', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
               <span style={{ fontWeight: 600, fontSize: 14 }}>{upcoming.title}</span><span style={{ fontSize: 12 }}>{fmtMin(upcoming.min, s.time)}</span>
@@ -108,9 +108,9 @@ export default function PhoneToday() {
       <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, padding: '14px 16px max(22px, env(safe-area-inset-bottom))', background: C.side, borderTop: '1px solid #1F232C', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, zIndex: 20 }}>
         {actBtn('Task', C.blue, ICON.tasks, () => openCapture({ type: 'task' }))}
         {actBtn('Note', C.amber, ICON.pencil, () => openCapture({ type: 'note' }))}
-        <Link href="/voice" aria-label="Hold to talk" style={{ width: 64, height: 64, marginTop: -30, borderRadius: 99, background: C.accent, color: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', boxShadow: `0 8px 28px ${C.glow2}` }}>
+        <button type="button" onClick={openVoice} aria-label="Talk: log something by voice" style={{ width: 64, height: 64, marginTop: -30, borderRadius: 99, border: 'none', background: C.accent, color: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', boxShadow: `0 8px 28px ${C.glow2}` }}>
           <Svg d={ICON.mic} size={28} sw={2.2} />
-        </Link>
+        </button>
         {actBtn('Event', C.purple, ICON.calendar, () => openCapture({ type: 'event' }))}
         <Link href="/progress" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '8px 0', color: C.muted, fontSize: 11, fontWeight: 600, textDecoration: 'none', minHeight: 52 }}>
           <Svg d={ICON.progress} size={22} sw={2.2} />Stats

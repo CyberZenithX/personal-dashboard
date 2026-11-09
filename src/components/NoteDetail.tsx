@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Note } from '@/lib/types';
 import { allTagColor, kindLabel, noteWhen } from '@/lib/view';
 import { useApp } from './store';
@@ -19,6 +19,16 @@ export function NoteDetail({ note, onDeleted, compact }: { note: Note; onDeleted
   const [tagChoice, setTagChoice] = useState<string | null>(note.tag);
 
   useEffect(() => { setEditing(false); setPicker(false); setTagOpen(false); }, [note.id]);
+  const pickerRef = useRef<HTMLDivElement>(null);
+  // link picker / tag picker: Esc or a click outside closes them
+  useEffect(() => {
+    if (!picker && !tagOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopImmediatePropagation(); setPicker(false); setTagOpen(false); } };
+    const onDown = (e: MouseEvent) => { if (picker && pickerRef.current && !pickerRef.current.contains(e.target as Node)) setPicker(false); };
+    window.addEventListener('keydown', onKey, true);
+    document.addEventListener('mousedown', onDown);
+    return () => { window.removeEventListener('keydown', onKey, true); document.removeEventListener('mousedown', onDown); };
+  }, [picker, tagOpen]);
 
   // The note-edit shortcut must not collide with a global one (E is "New event" by default).
   const editKey = s.keys.includes('E') ? 'Enter' : 'E';
@@ -140,7 +150,7 @@ export function NoteDetail({ note, onDeleted, compact }: { note: Note; onDeleted
         </div>
       )}
 
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 680 }}>
+      <div ref={pickerRef} style={{ display: 'flex', flexDirection: 'column', gap: 10, maxWidth: 680 }}>
         <span style={{ fontSize: 12, color: C.dim, letterSpacing: '.06em' }}>LINKED</span>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
           {note.links.map((l, i) => (

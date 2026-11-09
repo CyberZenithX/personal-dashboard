@@ -1,18 +1,27 @@
 'use client';
+import { useEffect, useRef } from 'react';
 import { useApp } from '../store';
-import { C, ICON, Svg } from '../ui';
+import { C, ICON, Svg, useDialogFocus, visuallyHidden } from '../ui';
 import { fmtElapsed, useVoice } from '../useVoice';
 import { itemSub } from '../desktop/Voice';
 
-export default function PhoneVoice() {
-  const v = useVoice();
+export default function PhoneVoice({ onClose }: { onClose: () => void; overlay?: boolean }) {
+  const v = useVoice(onClose);
+  const box = useRef<HTMLDivElement>(null);
+  useDialogFocus(box);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') v.cancel(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
   const { state } = useApp();
   const s = state.settings;
   const listening = v.mode === 'listening';
   const live = listening && v.supported && !v.showTyping;
 
   return (
-    <div style={{ minHeight: '100dvh', background: '#07080B', color: C.text, padding: 'max(24px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="pvoice-h" style={{ outline: 'none', minHeight: '100dvh', background: '#07080B', color: C.text, padding: 'max(24px, env(safe-area-inset-top)) 20px max(28px, env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <h1 id="pvoice-h" style={visuallyHidden}>Voice capture</h1>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <button type="button" onClick={v.cancel} aria-label="Close" style={{ width: 44, height: 44, borderRadius: 99, border: 'none', background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.text }}>
           <Svg d={ICON.close} size={18} sw={2.4} />

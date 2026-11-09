@@ -1,5 +1,4 @@
 'use client';
-import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useApp } from './store';
 import type { SortItem } from '@/lib/types';
@@ -38,9 +37,11 @@ function b64(bytes: Uint8Array): string {
   return btoa(s);
 }
 
-export function useVoice() {
+/** `onDone` runs when capture is saved or cancelled (closes the overlay, or leaves the /voice page). */
+export function useVoice(onDone: () => void) {
   const { state, act, flash } = useApp();
-  const router = useRouter();
+  const done = useRef(onDone);
+  done.current = onDone;
   const [mode, setMode] = useState<VoiceMode>('listening');
   const [finalText, setFinalText] = useState('');
   const [interim, setInterim] = useState('');
@@ -318,16 +319,16 @@ export function useVoice() {
   const saveItems = useCallback(async (list: SortItem[], transcript: string) => {
     setMode('saving');
     const r = await act('POST', '/api/capture', { transcript, items: list });
-    if (r) router.push('/');
+    if (r) done.current();
     else setMode('review');
-  }, [act, router]);
+  }, [act]);
 
   const finish = async () => {
     if (mode !== 'listening') return;
     setMode('saving');
     await stopListening();
     const t = textRef.current;
-    if (!t) { flash('Nothing heard'); router.push('/'); return; }
+    if (!t) { flash('Nothing heard'); done.current(); return; }
     const list = await sortNow(t);
     if (!list.length) { flash("Couldn't find anything to save"); setMode('review'); return; }
     const s = state.settings;
@@ -340,7 +341,7 @@ export function useVoice() {
     active.current = false;
     try { rec.current?.abort(); } catch { /* ignore */ }
     teardownLive();
-    router.push('/');
+    done.current();
   };
 
   const xp = items.reduce((a, it) => a + (it.type === 'complete' ? state.tasks.find((t) => t.id === it.taskId)?.xp ?? 10 : 5), 0);

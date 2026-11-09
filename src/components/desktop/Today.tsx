@@ -40,7 +40,7 @@ export function useTimeline(): TimelineEntry[] {
 }
 
 export default function Today() {
-  const { state, today, tz, toggleTask, openCapture } = useApp();
+  const { state, today, tz, toggleTask, openCapture, openVoice } = useApp();
   const [tag, setTag] = useState('All');
   const s = state.settings;
   const p = state.progress;
@@ -116,15 +116,15 @@ export default function Today() {
           {capBtn('Task', keys[0], C.blue, '#1F2A3D', ICON.tasks, () => openCapture({ type: 'task' }))}
           {capBtn('Note', keys[1], C.amber, '#2E2614', ICON.pencil, () => openCapture({ type: 'note' }))}
           {capBtn('Event', keys[2], C.purple, '#2A1C33', ICON.calendar, () => openCapture({ type: 'event' }))}
-          <Link href="/voice" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 18, borderRadius: 16, background: C.accent, color: 'var(--bg)', textDecoration: 'none', minHeight: 76 }}>
+          <button type="button" onClick={openVoice} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 18, borderRadius: 16, border: 'none', background: C.accent, color: 'var(--bg)', textAlign: 'left', minHeight: 76 }}>
             <span style={{ width: 40, height: 40, borderRadius: 99, background: 'var(--bg)', color: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
               <Svg d={ICON.mic} size={20} sw={2.2} />
             </span>
             <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontWeight: 700, fontSize: 15 }}>Just say it</span>
-              <span style={{ fontSize: 12, color: 'color-mix(in srgb, var(--bg) 75%, var(--accent))' }}>{keys[3] === 'Space' ? 'Hold Space' : 'Press ' + keys[3]}</span>
+              <span style={{ fontSize: 12, color: 'color-mix(in srgb, var(--bg) 75%, var(--accent))' }}>Press {keys[3]}</span>
             </span>
-          </Link>
+          </button>
         </section>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20, alignItems: 'start' }}>
@@ -192,7 +192,7 @@ export default function Today() {
             <section aria-label="Today timeline" style={{ padding: 22, borderRadius: 18, background: C.surface, border: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2 style={{ margin: 0, fontFamily: HEAD, fontSize: 18 }}>Your day so far</h2>
-                {s.pages.Calendar && <Link href="/calendar" style={{ fontSize: 13, textDecoration: 'none' }}>Open calendar</Link>}
+                {s.pages.Calendar && <Link href="/calendar" style={{ fontSize: 13, textDecoration: 'none', padding: '6px 4px', margin: '-6px -4px' }}>Open calendar</Link>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {(() => {

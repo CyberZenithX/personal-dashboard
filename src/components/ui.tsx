@@ -1,5 +1,5 @@
 'use client';
-import type { CSSProperties, ReactNode } from 'react';
+import { useEffect, type CSSProperties, type ReactNode, type RefObject } from 'react';
 
 /* Colour tokens. Anything that follows the theme uses a CSS variable (see globals.css). */
 export const C = {
@@ -109,4 +109,41 @@ export function Pill({
   );
 }
 
-export const visuallyHidden: CSSProperties = { position: 'absolute', left: -9999 };
+export const visuallyHidden: CSSProperties = {
+  position: 'absolute', width: 1, height: 1, padding: 0, margin: -1, overflow: 'hidden', clip: 'rect(0 0 0 0)', whiteSpace: 'nowrap', border: 0
+};
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+/**
+ * Keeps keyboard focus inside an open dialog (Tab / Shift+Tab wrap around), moves focus into it when it opens,
+ * and puts focus back where it was when it closes.
+ */
+export function useDialogFocus(ref: RefObject<HTMLElement | null>, active = true) {
+  useEffect(() => {
+    if (!active) return;
+    const before = document.activeElement as HTMLElement | null;
+    const el = ref.current;
+    const t = setTimeout(() => {
+      if (el && !el.contains(document.activeElement)) (el.querySelector<HTMLElement>('[autofocus], ' + FOCUSABLE) ?? el).focus();
+    }, 30);
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Tab' || !el) return;
+      // only the top-most dialog traps focus
+      const dialogs = [...document.querySelectorAll('[aria-modal="true"]')];
+      if (dialogs.length && dialogs[dialogs.length - 1] !== el && !el.contains(dialogs[dialogs.length - 1])) return;
+      const items = [...el.querySelectorAll<HTMLElement>(FOCUSABLE)].filter((n) => n.offsetParent !== null || n === document.activeElement);
+      if (!items.length) { e.preventDefault(); el.focus(); return; }
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !el.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || !el.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      clearTimeout(t);
+      document.removeEventListener('keydown', onKey);
+      if (before && before.isConnected && typeof before.focus === 'function') setTimeout(() => before.focus(), 0);
+    };
+  }, [ref, active]);
+}

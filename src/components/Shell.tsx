@@ -4,6 +4,8 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { CaptureSheet } from './CaptureSheet';
 import { comboFromEvent, keyState } from './keys';
 import { PhoneTabs } from './Nav';
+import DesktopVoice from './desktop/Voice';
+import PhoneVoice from './phone/Voice';
 import { LevelUpScreen, Palette, TaskMenu, Toast } from './Overlays';
 import { useApp } from './store';
 import { C } from './ui';
@@ -50,7 +52,7 @@ function useShortcuts() {
         case 0: e.preventDefault(); app.openCapture({ type: 'task' }); break;
         case 1: e.preventDefault(); app.openCapture({ type: 'note' }); break;
         case 2: e.preventDefault(); app.openCapture({ type: 'event' }); break;
-        case 3: if (pathname !== '/voice') { e.preventDefault(); router.push('/voice'); } break;
+        case 3: if (pathname !== '/voice' && !app.voiceOpen) { e.preventDefault(); app.openVoice(); } break;
         case 4: if (sel) { e.preventDefault(); app.toggleTask(sel); } break;
         case 5: if (sel) { e.preventDefault(); void app.act('PATCH', `/api/tasks/${sel}`, { pushDays: 1 }); } break;
         case 6: e.preventDefault(); app.setPalette(!app.palette); break;
@@ -101,6 +103,20 @@ function useReminders() {
   }, []);
 }
 
+function VoiceOverlay({ phone, onClose }: { phone: boolean; onClose: () => void }) {
+  // Lock the page behind so it doesn't scroll under the overlay.
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 85, overflowY: 'auto', animation: 'voiceIn .18s ease-out' }}>
+      {phone ? <PhoneVoice onClose={onClose} overlay /> : <DesktopVoice onClose={onClose} overlay />}
+    </div>
+  );
+}
+
 export function Shell({ children }: { children: ReactNode }) {
   const app = useApp();
   const router = useRouter();
@@ -123,6 +139,7 @@ export function Shell({ children }: { children: ReactNode }) {
       <CaptureSheet />
       <TaskMenu />
       <Palette />
+      {app.voiceOpen && pathname !== '/voice' && <VoiceOverlay phone={app.phone} onClose={app.closeVoice} />}
       <Toast />
       <LevelUpScreen />
     </div>

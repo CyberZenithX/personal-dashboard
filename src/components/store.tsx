@@ -29,6 +29,10 @@ interface Store {
   openTaskMenu: (id: number | null) => void;
   palette: boolean;
   setPalette: (v: boolean) => void;
+  /** Voice capture opens as an overlay on top of the current page. */
+  voiceOpen: boolean;
+  openVoice: () => void;
+  closeVoice: () => void;
   selectedTask: number | null;
   setSelectedTask: (id: number | null) => void;
   act: (method: 'POST' | 'PATCH' | 'DELETE' | 'PUT', url: string, body?: unknown) => Promise<MutationResult | null>;
@@ -73,6 +77,7 @@ export function AppProvider({ initial, children }: { initial: AppState; children
   const [capture, setCapture] = useState<CaptureReq | null>(null);
   const [menuTaskId, setMenuTaskId] = useState<number | null>(null);
   const [palette, setPalette] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<number | null>(null);
   const [saveState, setSaveState] = useState<'saved' | 'saving'>('saved');
   const [clock, setClock] = useState(0);
@@ -226,6 +231,7 @@ export function AppProvider({ initial, children }: { initial: AppState; children
     dismissLevelUp: () => setLevelUp(null),
     capture, openCapture: setCapture, closeCapture: () => setCapture(null),
     menuTaskId, openTaskMenu: setMenuTaskId, palette, setPalette,
+    voiceOpen, openVoice: () => { setCapture(null); setPalette(false); setVoiceOpen(true); }, closeVoice: () => setVoiceOpen(false),
     selectedTask, setSelectedTask, act, setSettings, toggleTask
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

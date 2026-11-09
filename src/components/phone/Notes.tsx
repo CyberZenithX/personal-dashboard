@@ -1,8 +1,9 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { NoteDetail } from '../NoteDetail';
 import { useApp } from '../store';
-import { C, HEAD, ICON, Svg } from '../ui';
+import { C, HEAD, ICON, Svg, useDialogFocus } from '../ui';
 import { fmtTime, timeOfDayFromIso } from '@/lib/time';
 import type { Note } from '@/lib/types';
 import { allTagColor, dayLabel, kindLabel } from '@/lib/view';
@@ -13,10 +14,11 @@ export default function PhoneNotes() {
   const [q, setQ] = useState('');
   const [chip, setChip] = useState('All');
   const [open, setOpen] = useState<number | null>(null);
+  const params = useSearchParams();
   useEffect(() => {
-    const id = Number(new URLSearchParams(window.location.search).get('note'));
+    const id = Number(params.get('note'));
     if (id) setOpen(id);
-  }, []);
+  }, [params]);
 
   const list = state.notes.filter((n) =>
     (chip === 'All' || (chip === 'From voice' ? n.source === 'voice' : n.tag === chip)) &&
@@ -54,7 +56,7 @@ export default function PhoneNotes() {
           <button type="button" onClick={() => openCapture({ type: 'note', evening: true, title: 'Best part of the day' })} style={{ padding: 16, borderRadius: 16, background: '#2E2614', border: '1px solid #4A3D1C', display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'left', color: '#FFF3D6' }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: C.amber, letterSpacing: '.06em' }}>EVENING CHECK-IN · +5 XP</span>
             <span style={{ fontSize: 16, fontWeight: 600 }}>What was the best part of today?</span>
-            <span style={{ fontSize: 12, color: '#E0C68E' }}>Tap to type, or hold the mic to say it</span>
+            <span style={{ fontSize: 12, color: '#E0C68E' }}>Tap to write it down</span>
           </button>
         )}
 
@@ -89,14 +91,31 @@ export default function PhoneNotes() {
         <Svg d={ICON.pencil} size={22} sw={2.4} />
       </button>
 
-      {cur && (
-        <div role="dialog" aria-modal="true" aria-label={cur.title} style={{ position: 'fixed', inset: 0, zIndex: 50, background: C.bg, overflowY: 'auto', padding: '16px 20px max(32px, env(safe-area-inset-bottom))' }}>
-          <button type="button" onClick={() => setOpen(null)} aria-label="Back to notes" style={{ width: 44, height: 44, borderRadius: 12, border: 'none', background: C.surface, color: C.text, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-            <Svg d={ICON.back} sw={2.4} />
-          </button>
-          <NoteDetail note={cur} compact onDeleted={() => setOpen(null)} />
-        </div>
-      )}
+      {cur && <NoteSheet title={cur.title} onClose={() => setOpen(null)}>
+        <NoteDetail note={cur} compact onDeleted={() => setOpen(null)} />
+      </NoteSheet>}
+    </div>
+  );
+}
+
+/** Full-screen note view: Esc or Back closes it (Esc first cancels an edit in progress). */
+function NoteSheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null);
+  useDialogFocus(box);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || document.getElementById('edtitle') || document.querySelectorAll('[aria-modal="true"]').length > 1) return;
+      onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} style={{ outline: 'none', position: 'fixed', inset: 0, zIndex: 50, background: C.bg, overflowY: 'auto', padding: '16px 20px max(32px, env(safe-area-inset-bottom))' }}>
+      <button type="button" onClick={onClose} aria-label="Back to notes" style={{ width: 44, height: 44, borderRadius: 12, border: 'none', background: C.surface, color: C.text, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+        <Svg d={ICON.back} sw={2.4} />
+      </button>
+      {children}
     </div>
   );
 }

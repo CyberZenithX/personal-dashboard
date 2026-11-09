@@ -1,4 +1,5 @@
 'use client';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { NoteDetail } from '../NoteDetail';
 import { DesktopNav } from '../Nav';
@@ -13,10 +14,11 @@ export default function Notes() {
   const [book, setBook] = useState('All notes');
   const [q, setQ] = useState('');
 
+  const params = useSearchParams();
   useEffect(() => {
-    const id = Number(new URLSearchParams(window.location.search).get('note'));
-    if (id) setSel(id);
-  }, []);
+    const id = Number(params.get('note'));
+    if (id) { setSel(id); setBook('All notes'); setQ(''); }
+  }, [params]);
 
   const books = useMemo(
     () => [

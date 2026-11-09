@@ -43,8 +43,10 @@ export function TagGroup({ kind, title }: { kind: 'taskTags' | 'noteTags'; title
             <button
               type="button" aria-label={`Change colour of ${name}`} title="Click to change colour"
               onClick={() => set(tags.map((t, j) => (j === i ? [t[0], TAG_PALETTE[(TAG_PALETTE.indexOf(color) + 1) % TAG_PALETTE.length]] : t)))}
-              style={{ width: 16, height: 16, borderRadius: 99, border: '2px solid #0E1014', background: color, padding: 0, boxShadow: `0 0 0 1px ${color}` }}
-            />
+              style={{ width: 28, height: 28, margin: '-6px -4px -6px -6px', borderRadius: 99, border: 'none', background: 'transparent', padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}
+            >
+              <span style={{ width: 16, height: 16, borderRadius: 99, border: '2px solid #0E1014', background: color, boxShadow: `0 0 0 1px ${color}` }} />
+            </button>
             <span style={{ color }}>{name}</span>
             <button type="button" aria-label={`Remove ${name}`} onClick={() => set(tags.filter((_, j) => j !== i))} style={{ width: 28, height: 28, borderRadius: 8, border: 'none', background: 'transparent', color: C.dim, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Svg d={ICON.close} size={12} sw={2.6} />

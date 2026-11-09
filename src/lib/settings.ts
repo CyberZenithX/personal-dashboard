@@ -4,7 +4,7 @@ export const DEFAULT_KEYS: [string, string][] = [
   ['New task', 'T'],
   ['New note', 'N'],
   ['New event', 'E'],
-  ['Hold to talk', 'Space'],
+  ['Talk (voice capture)', 'Space'],
   ['Complete selected', 'X'],
   ['Push to tomorrow', 'Shift + →'],
   ['Search everything', 'Ctrl + K']

@@ -1,5 +1,6 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 import { DesktopNav, LevelCard } from '../Nav';
 import { useApp } from '../store';
 import { C, HEAD, ICON, Svg, visuallyHidden } from '../ui';
@@ -35,6 +36,24 @@ export default function Tasks() {
   const p = state.progress;
   const [view, setView] = useState<TaskView>('Today');
   const [tag, setTag] = useState('All');
+  const params = useSearchParams();
+  // ?task=ID (from search): show the view that contains it, select it and scroll to it
+  useEffect(() => {
+    const id = Number(params.get('task'));
+    const t = id ? state.tasks.find((x) => x.id === id) : undefined;
+    if (!t) return;
+    const g = taskGroup(t, today);
+    setTag('All');
+    setView(t.done ? 'Done' : g === 'Someday' ? 'Someday' : g === 'Overdue' || g === 'Today' || g === 'Tomorrow' ? 'Today' : 'Upcoming');
+    setSelectedTask(id);
+    setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(`[data-task-id="${id}"]`);
+      el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      el?.focus({ preventScroll: true });
+    }, 60);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
+  const selTask = state.tasks.find((t) => t.id === selectedTask);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [literal, setLiteral] = useState(false);
@@ -62,7 +81,7 @@ export default function Tasks() {
     if (r) { setDraft(''); setLiteral(false); }
   };
 
-  const keyHint = (i: number) => (s.keys[i] === 'Space' ? 'Hold Space' : s.keys[i]);
+  const keyHint = (i: number) => s.keys[i];
   const whenPill = parsed.date ? dueLabel({ dueDate: parsed.date, dueTime: parsed.time, done: false, doneAt: null } as Task, today, tz, s.time) : 'No date';
   const detected = !!(parsed.date || parsed.tag);
 
@@ -124,6 +143,9 @@ export default function Tasks() {
             })}
           </div>
 
+          <span aria-live="polite" style={visuallyHidden}>
+            {selTask ? `Selected: ${selTask.title}. ${s.keys[4]} to ${selTask.done ? 'mark not done' : 'complete'}, ${s.keys[5]} to push to tomorrow.` : ''}
+          </span>
           {groups.every((g) => !g.items.length) && (
             <div style={{ padding: 28, borderRadius: 14, border: `1px dashed ${C.border2}`, color: C.dim, fontSize: 14, textAlign: 'center' }}>
               {view === 'Done' ? 'Nothing finished yet — go get one.' : 'All clear here. Add a task above or press ' + s.keys[0] + '.'}
@@ -141,7 +163,8 @@ export default function Tasks() {
                 return (
                   <div
                     key={t.id} tabIndex={0} onFocus={() => setSelectedTask(t.id)} onClick={() => setSelectedTask(t.id)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 'var(--row-pad) 14px', borderRadius: 12, background: t.done ? C.accentRow2 : C.surface, border: `1px solid ${sel ? '#5A6273' : '#22262F'}`, transition: 'background .25s' }}
+                    data-task-id={t.id} role="group" aria-label={t.title} aria-current={sel ? 'true' : undefined}
+                    style={{ outline: sel ? `2px solid ${C.accentLine}` : undefined, outlineOffset: 1, display: 'flex', alignItems: 'center', gap: 14, padding: 'var(--row-pad) 14px', borderRadius: 12, background: t.done ? C.accentRow2 : C.surface, border: `1px solid ${sel ? '#5A6273' : '#22262F'}`, transition: 'background .25s' }}
                   >
                     <button type="button" onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }} aria-pressed={t.done} aria-label={`Complete ${t.title}`} style={{ width: 44, height: 44, margin: '-11px -8px -11px -11px', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
                       <span style={{ width: 22, height: 22, borderRadius: 7, border: `2px solid ${t.done ? C.accent : '#4A5160'}`, background: t.done ? C.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }}>

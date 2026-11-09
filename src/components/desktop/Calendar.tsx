@@ -1,6 +1,8 @@
 'use client';
 import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { DesktopNav } from '../Nav';
 import { useApp } from '../store';
 import { C, HEAD, Svg, ICON } from '../ui';
 import { addDays, DOW_SHORT, fmtClockHour, fmtMin, hhmmToMin, minutesOfDay, MONTH_LONG, MONTH_SHORT, parts, weekStart, dow } from '@/lib/time';
@@ -44,8 +46,14 @@ function layout(blocks: Omit<Block, 'lane' | 'lanes'>[]): Block[] {
 export default function Calendar() {
   const { state, today, tz, phone, openCapture, openTaskMenu } = useApp();
   const s = state.settings;
-  const [view, setView] = useState<'Day' | 'Week' | 'Month'>('Week');
+  const params = useSearchParams();
+  const [view, setView] = useState<'Day' | 'Week' | 'Month'>(phone ? 'Day' : 'Week');
   const [anchor, setAnchor] = useState(today);
+  // ?date=YYYY-MM-DD (from search) jumps to that day
+  useEffect(() => {
+    const d = params.get('date');
+    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d)) setAnchor(d);
+  }, [params]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrolled = useRef(false);
 
@@ -92,6 +100,7 @@ export default function Calendar() {
     }
   };
 
+  const untimed = (day: string) => state.tasks.filter((t) => t.dueDate === day && !t.dueTime);
   const scored = days.filter((d) => d <= today && (state.progress.days[d]?.score ?? 0) > 0);
   const avg = scored.length ? Math.round(scored.reduce((a, d) => a + state.progress.days[d].score, 0) / scored.length) : 0;
   const nowMin = minutesOfDay(new Date(), tz);
@@ -106,17 +115,21 @@ export default function Calendar() {
   );
 
   return (
-    <div style={{ minHeight: '100dvh', background: C.bg, color: C.text, padding: phone ? '20px 16px 32px' : '32px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ minHeight: '100dvh', background: C.bg, color: C.text, display: 'flex', flexWrap: 'wrap' }}>
+    {!phone && <DesktopNav active="Calendar" />}
+    <main style={{ flex: '999 1 560px', minWidth: 0, padding: phone ? '20px 16px 32px' : '32px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-          <Link href="/" aria-label="Back to Today" style={{ width: 40, height: 40, borderRadius: 12, border: `1px solid ${C.border2}`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.text }}>
-            <Svg d={ICON.back} sw={2.2} />
-          </Link>
+          {phone && (
+            <Link href="/" style={{ height: 40, padding: '0 14px 0 10px', borderRadius: 99, background: C.surface, display: 'flex', alignItems: 'center', gap: 4, color: C.text, textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>
+              <Svg d={ICON.back} size={16} sw={2.4} />Home
+            </Link>
+          )}
           <h1 style={{ margin: 0, fontFamily: HEAD, fontSize: 28 }}>{title}</h1>
           <div style={{ display: 'flex', gap: 6 }}>
-            {navBtn('Previous', () => step(-1), ICON.back)}
+            {navBtn(`Previous ${view.toLowerCase()}`, () => step(-1), ICON.back)}
             <button type="button" onClick={() => setAnchor(today)} style={{ padding: '0 12px', height: 40, borderRadius: 12, border: `1px solid ${C.border2}`, background: 'transparent', color: C.muted, fontSize: 13 }}>Today</button>
-            {navBtn('Next', () => step(1), ICON.chevron)}
+            {navBtn(`Next ${view.toLowerCase()}`, () => step(1), ICON.chevron)}
           </div>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -145,6 +158,16 @@ export default function Calendar() {
                     </div>
                     <span style={{ fontSize: 11, color: '#C3C9D4', fontWeight: 600, minWidth: 14 }}>{future ? '' : sc}</span>
                   </div>
+                  {untimed(d).length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                      {untimed(d).slice(0, view === 'Day' ? 8 : 3).map((t) => (
+                        <button key={t.id} type="button" onClick={() => openTaskMenu(t.id)} title={`${t.title} · no time set`} style={{ padding: '3px 8px', minHeight: 24, borderRadius: 6, border: 'none', background: KINDS.task.bg, color: KINDS.task.fg, fontSize: 11, fontWeight: 600, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', opacity: t.done ? 0.55 : 1, textDecoration: t.done ? 'line-through' : 'none' }}>
+                          {t.title}
+                        </button>
+                      ))}
+                      {untimed(d).length > (view === 'Day' ? 8 : 3) && <span style={{ fontSize: 11, color: C.dim }}>+{untimed(d).length - (view === 'Day' ? 8 : 3)} more</span>}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -159,18 +182,22 @@ export default function Calendar() {
                 {blocksFor(d).map((b) => {
                   const k = KINDS[b.kind] ?? KINDS.event;
                   const done = b.taskId ? state.tasks.find((t) => t.id === b.taskId)?.done : false;
+                  const h = Math.max(22, (b.end - b.start) / 60 * H - 4);
+                  const short = h < 46;
+                  const when = `${fmtMin(b.start, s.time)}–${fmtMin(b.end, s.time)}`;
                   return (
                     <button
                       key={b.key} type="button"
                       onClick={() => (b.eventId ? openCapture({ type: 'event', edit: state.events.find((e) => e.id === b.eventId) }) : b.taskId && openTaskMenu(b.taskId))}
                       style={{
                         position: 'absolute', left: `calc(${(b.lane / b.lanes) * 100}% + 6px)`, width: `calc(${100 / b.lanes}% - 12px)`,
-                        top: b.start / 60 * H + 2, height: Math.max(22, (b.end - b.start) / 60 * H - 4), padding: '8px 10px', borderRadius: 10, border: 'none',
-                        background: k.bg, color: k.fg, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 2, textAlign: 'left', opacity: done ? 0.55 : 1
+                        top: b.start / 60 * H + 2, height: h, padding: short ? '3px 8px' : '8px 10px', borderRadius: short ? 7 : 10, border: 'none',
+                        background: k.bg, color: k.fg, overflow: 'hidden', display: 'flex', flexDirection: short ? 'row' : 'column', alignItems: short ? 'center' : 'stretch', gap: short ? 6 : 2, textAlign: 'left', opacity: done ? 0.55 : 1
                       }}
+                      title={`${b.title} · ${when}`}
                     >
-                      <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.3, textDecoration: done ? 'line-through' : 'none' }}>{b.title}</span>
-                      <span style={{ fontSize: 11, opacity: 0.85 }}>{fmtMin(b.start, s.time)}–{fmtMin(b.end, s.time)}</span>
+                      <span style={{ fontSize: 12, fontWeight: 600, lineHeight: 1.3, textDecoration: done ? 'line-through' : 'none', ...(short ? { overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 } : {}) }}>{b.title}</span>
+                      <span style={{ fontSize: 11, opacity: 0.85, whiteSpace: 'nowrap', flex: 'none' }}>{short ? fmtMin(b.start, s.time) : when}</span>
                     </button>
                   );
                 })}
@@ -188,13 +215,14 @@ export default function Calendar() {
       )}
 
       <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', fontSize: 12, color: C.muted, alignItems: 'center' }}>
-        {([['Events', '#D59CFF'], ['Time-blocked tasks', '#7FB2FF'], ['Habits', '#FFC85C']] as const).map(([l, c]) => (
+        {([['Events', '#D59CFF'], ['Tasks (no time = under the date)', '#7FB2FF'], ['Habits', '#FFC85C']] as const).map(([l, c]) => (
           <span key={l} style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 3, background: c }} />{l}</span>
         ))}
         <span style={{ marginLeft: phone ? 0 : 'auto' }}>
           Scroll the grid for the full 24 hours. Bar under each date = that day’s score. {view === 'Day' ? '' : <>Week average: <strong style={{ color: C.accent }}>{avg}</strong></>}
         </span>
       </div>
+    </main>
     </div>
   );
 }
@@ -215,7 +243,7 @@ function MonthGrid({ anchor, onPick }: { anchor: string; onPick: (d: string) => 
           const inMonth = parts(d).m === m;
           const evs = [
             ...eventsOn(state.events, d).map((e) => ({ t: e.title, k: e.kind })),
-            ...state.tasks.filter((t) => t.dueDate === d && t.dueTime).map((t) => ({ t: t.title, k: 'task' as const }))
+            ...state.tasks.filter((t) => t.dueDate === d).sort((a, b) => (a.dueTime ?? '99').localeCompare(b.dueTime ?? '99')).map((t) => ({ t: t.title, k: 'task' as const }))
           ];
           return (
             <button key={d} type="button" onClick={() => onPick(d)} style={{ minHeight: 104, padding: 8, border: 'none', borderLeft: '1px solid #1F232C', borderBottom: '1px solid #1F232C', background: d === today ? C.accentRow : 'transparent', color: inMonth ? C.text : '#5A6273', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: 4 }}>

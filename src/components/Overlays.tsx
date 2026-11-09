@@ -2,12 +2,12 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { rewardsAt } from '@/lib/levels';
-import { addDays } from '@/lib/time';
+import { addDays, dow } from '@/lib/time';
 import type { Task } from '@/lib/types';
 import { allTagColor } from '@/lib/view';
 import { Modal } from './CaptureSheet';
 import { useApp } from './store';
-import { C, HEAD, ICON, Pill, Svg } from './ui';
+import { C, HEAD, ICON, Pill, Svg, useDialogFocus } from './ui';
 
 /* ------------------------------------------------------------------- toast */
 
@@ -159,19 +159,29 @@ export function Palette() {
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(0);
   const ref = useRef<HTMLInputElement>(null);
+  const box = useRef<HTMLDivElement>(null);
+  useDialogFocus(box, palette);
   useEffect(() => {
-    if (palette) { setQ(''); setSel(0); setTimeout(() => ref.current?.focus(), 20); }
+    // reset when closing, so nothing typed straight after opening is wiped
+    if (!palette) { setQ(''); setSel(0); }
   }, [palette]);
   const results = useMemo(() => {
     const needle = q.trim().toLowerCase();
     if (!needle) return [];
     const out: { key: string; type: string; label: string; sub: string; color: string; go: () => void }[] = [];
     state.tasks.filter((t) => t.title.toLowerCase().includes(needle)).slice(0, 6).forEach((t) =>
-      out.push({ key: 't' + t.id, type: 'Task', label: t.title, sub: t.done ? 'Done' : t.dueDate ?? 'No date', color: C.blue, go: () => router.push('/tasks') }));
+      out.push({ key: 't' + t.id, type: 'Task', label: t.title, sub: t.done ? 'Done' : t.dueDate ?? 'No date', color: C.blue, go: () => router.push(`/tasks?task=${t.id}`) }));
     state.notes.filter((n) => (n.title + ' ' + n.body).toLowerCase().includes(needle)).slice(0, 6).forEach((n) =>
       out.push({ key: 'n' + n.id, type: 'Note', label: n.title, sub: n.body.slice(0, 60), color: C.amber, go: () => router.push('/notes?note=' + n.id) }));
-    state.events.filter((e) => e.title.toLowerCase().includes(needle) && e.date >= today).slice(0, 4).forEach((e) =>
-      out.push({ key: 'e' + e.id, type: 'Event', label: e.title, sub: e.date, color: C.purple, go: () => router.push('/calendar') }));
+    state.events.filter((e) => e.title.toLowerCase().includes(needle) && (e.date >= today || e.repeatDays?.length)).slice(0, 4).forEach((e) => {
+      // repeating habits: jump to the next day they happen
+      let day = e.date;
+      if (e.repeatDays?.length && day < today) {
+        day = today;
+        for (let i = 0; i < 7 && !e.repeatDays.includes(dow(day)); i++) day = addDays(day, 1);
+      }
+      out.push({ key: 'e' + e.id, type: 'Event', label: e.title, sub: day, color: C.purple, go: () => router.push(`/calendar?date=${day}`) });
+    });
     return out;
   }, [q, state, today, router]);
   if (!palette) return null;
@@ -182,12 +192,12 @@ export function Palette() {
       onMouseDown={(e) => e.target === e.currentTarget && close()}
       style={{ position: 'fixed', inset: 0, zIndex: 70, background: 'rgba(5,6,8,.7)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: phone ? '12px 12px' : '12vh 16px' }}
     >
-      <div role="dialog" aria-modal="true" aria-label="Search everything" style={{ width: 'min(560px, 100%)', borderRadius: 18, background: '#1C2029', border: '1px solid #3A404D', boxShadow: '0 16px 40px rgba(0,0,0,.45)', overflow: 'hidden' }}>
+      <div ref={box} role="dialog" aria-modal="true" aria-label="Search everything" style={{ width: 'min(560px, 100%)', borderRadius: 18, background: '#1C2029', border: '1px solid #3A404D', boxShadow: '0 16px 40px rgba(0,0,0,.45)', overflow: 'hidden' }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', borderBottom: '1px solid #2D3240' }}>
           <Svg d={ICON.search} size={16} color={C.dim} sw={2.2} />
           <span style={{ position: 'absolute', left: -9999 }}>Search everything</span>
           <input
-            ref={ref} value={q} placeholder="Search tasks, notes, events"
+            ref={ref} autoFocus value={q} placeholder="Search tasks, notes, events"
             onChange={(e) => { setQ(e.target.value); setSel(0); }}
             onKeyDown={(e) => {
               if (e.key === 'Escape') close();
@@ -221,6 +231,8 @@ export function Palette() {
 
 export function LevelUpScreen() {
   const { levelUp, dismissLevelUp, state, today, phone } = useApp();
+  const box = useRef<HTMLDivElement>(null);
+  useDialogFocus(box, !!levelUp);
   useEffect(() => {
     if (!levelUp) return;
     const onKey = (e: KeyboardEvent) => (e.key === 'Escape' || e.key === 'Enter') && dismissLevelUp();
@@ -242,7 +254,7 @@ export function LevelUpScreen() {
     ['left:calc(100% - 90px);top:210px', 8, 8, C.accent, 2, 45], ['left:50%;top:10px', 6, 10, '#FFB36B', 2, 10]
   ] as const;
   return (
-    <div role="dialog" aria-modal="true" aria-label="You levelled up" style={{ position: 'fixed', inset: 0, zIndex: 100, background: phone ? C.bg : 'rgba(5,6,8,.8)', display: 'flex', justifyContent: 'center', alignItems: phone ? 'stretch' : 'center', overflowY: 'auto' }}>
+    <div ref={box} role="dialog" aria-modal="true" aria-label="You levelled up" style={{ position: 'fixed', inset: 0, zIndex: 100, background: phone ? C.bg : 'rgba(5,6,8,.8)', display: 'flex', justifyContent: 'center', alignItems: phone ? 'stretch' : 'center', overflowY: 'auto' }}>
       <div style={{ width: phone ? '100%' : 420, minHeight: phone ? '100dvh' : undefined, background: C.bg, borderRadius: phone ? 0 : 28, border: phone ? 'none' : '1px solid #2D3240', padding: '28px 20px max(28px, env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 22, position: 'relative', overflow: 'hidden' }}>
         {state.settings.flags.confetti && (
           <div aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, top: 70, height: 300, pointerEvents: 'none' }}>

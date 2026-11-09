@@ -43,7 +43,7 @@ export default function PhoneSettings() {
       { label: 'Note hashtags', icon: I.hash, color: C.amber, sub: s.noteTags.map((t) => t[0]).join(' '), value: String(s.noteTags.length), sheet: 'noteTags' }] },
     { title: 'Shortcuts', rows: [
       { label: 'Keyboard shortcuts', icon: I.key, color: C.muted, value: String(s.keys.length), sheet: 'keys' },
-      { label: 'Hold mic to talk', icon: ICON.mic, color: C.accent, sub: 'The mic button is on every screen', value: '' }] },
+      { label: 'Talk to log', icon: ICON.mic, color: C.accent, sub: 'Tap the mic on Today or in the tab bar', value: '' }] },
     { title: 'Voice and AI', rows: [
       { label: 'Listening model', icon: ICON.mic, color: C.accent, value: s.listenModel.replace('Gemini ', ''), sheet: 'listen' },
       { label: 'Sorting model', icon: ICON.bolt, color: C.accent, value: s.sortModel.replace('Gemini ', ''), sheet: 'sort' },

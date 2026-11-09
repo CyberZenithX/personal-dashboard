@@ -1,15 +1,16 @@
 'use client';
-import { useRef, useState, type ReactNode } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useApp } from '../store';
 import { C, HEAD, ICON, Svg } from '../ui';
 import { PRIO_COLOR, groupTasks, type TaskView } from '../desktop/Tasks';
 import type { Task } from '@/lib/types';
-import { allTagColor, dueLabel } from '@/lib/view';
+import { allTagColor, dueLabel, taskGroup } from '@/lib/view';
 
 const GROUP_COLOR: Record<string, string> = { Overdue: '#FF9E7A', Today: 'var(--accent)' };
 
 /** Swipe right = finish, left = push to tomorrow, long-press = actions. */
-export function SwipeRow({ task, children }: { task: Task; children: ReactNode }) {
+export function SwipeRow({ task, children, highlight }: { task: Task; children: ReactNode; highlight?: boolean }) {
   const { toggleTask, act, openTaskMenu, flash } = useApp();
   const start = useRef<{ x: number; y: number } | null>(null);
   const press = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -21,7 +22,7 @@ export function SwipeRow({ task, children }: { task: Task; children: ReactNode }
 
   const reset = () => { start.current = null; horizontal.current = false; setDx(0); clearTimeout(press.current); };
   return (
-    <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden' }}>
+    <div data-task-id={task.id} style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', boxShadow: highlight ? `0 0 0 2px ${C.accent}` : undefined, transition: 'box-shadow .4s' }}>
       <div aria-hidden="true" style={{ position: 'absolute', inset: 0, display: 'flex', justifyContent: dx > 0 ? 'flex-start' : 'flex-end', alignItems: 'center', padding: '0 20px', background: dx > 0 ? C.accent : '#3A404D', color: dx > 0 ? 'var(--bg)' : '#fff', fontSize: 12, fontWeight: 700 }}>
         {dx > 0 ? 'Finish' : dx < 0 ? 'Tomorrow' : ''}
       </div>
@@ -76,6 +77,22 @@ export default function PhoneTasks() {
   const q = state.progress.overdueQuest;
   const [view, setView] = useState<'Today' | 'Upcoming' | 'Done'>('Today');
   const [tag, setTag] = useState('All');
+  const [flashId, setFlashId] = useState<number | null>(null);
+  const params = useSearchParams();
+  // ?task=ID (from search): open the right tab and scroll to it
+  useEffect(() => {
+    const id = Number(params.get('task'));
+    const t = id ? state.tasks.find((x) => x.id === id) : undefined;
+    if (!t) return;
+    const g = taskGroup(t, today);
+    setTag('All');
+    setView(t.done ? 'Done' : g === 'Overdue' || g === 'Today' || g === 'Tomorrow' ? 'Today' : 'Upcoming');
+    setFlashId(id);
+    setTimeout(() => document.querySelector(`[data-task-id="${id}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }), 60);
+    const off = setTimeout(() => setFlashId(null), 2500);
+    return () => clearTimeout(off);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
   const visible = state.tasks.filter((t) => tag === 'All' || t.tag === tag);
   const groups = view === 'Upcoming'
     ? [...groupTasks(visible, 'Upcoming', today, tz), ...groupTasks(visible, 'Someday', today, tz)]
@@ -111,7 +128,7 @@ export default function PhoneTasks() {
           <section key={grp.label} aria-label={grp.label} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <h2 style={{ margin: 0, padding: '4px 4px 2px', fontSize: 12, fontWeight: 700, color: GROUP_COLOR[grp.label] ?? C.muted, letterSpacing: '.06em', textTransform: 'uppercase' }}>{grp.label} · {grp.items.length}</h2>
             {grp.items.map((t) => (
-              <SwipeRow key={t.id} task={t}>
+              <SwipeRow key={t.id} task={t} highlight={flashId === t.id}>
                 <div style={{ display: 'flex', alignItems: 'center', borderRadius: 12, background: t.done ? C.accentRow2 : C.surface, transition: 'background .25s' }}>
                 <button type="button" onClick={() => toggleTask(t.id)} aria-pressed={t.done} aria-label={`${t.done ? 'Mark not done' : 'Complete'}: ${t.title}`} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, background: 'transparent', border: 'none', color: C.text, textAlign: 'left', minHeight: 56 }}>
                   <span style={{ width: 24, height: 24, borderRadius: 99, border: `2px solid ${t.done ? C.accent : '#4A5160'}`, background: t.done ? C.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>

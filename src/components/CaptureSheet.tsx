@@ -4,7 +4,7 @@ import { parseQuick } from '@/lib/parse';
 import { addDays, DOW_SHORT, fmtTime, minToHhmm, shortDate, weekStart } from '@/lib/time';
 import type { EventKind } from '@/lib/types';
 import { useApp, type CaptureReq } from './store';
-import { C, HEAD, Pill, Svg, ICON } from './ui';
+import { C, HEAD, Pill, Svg, ICON, useDialogFocus } from './ui';
 
 const inputStyle: CSSProperties = {
   padding: 14, borderRadius: 12, background: C.bg, border: '1px solid #3A404D', color: '#FFFFFF',
@@ -15,6 +15,8 @@ const linkBtn: CSSProperties = { border: 'none', background: 'transparent', colo
 
 export function Modal({ label, onClose, children }: { label: string; onClose: () => void; children: ReactNode }) {
   const { phone } = useApp();
+  const box = useRef<HTMLDivElement>(null);
+  useDialogFocus(box);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', onKey);
@@ -29,8 +31,9 @@ export function Modal({ label, onClose, children }: { label: string; onClose: ()
       }}
     >
       <div
-        role="dialog" aria-modal="true" aria-label={label}
+        ref={box} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}
         style={{
+          outline: 'none',
           width: phone ? '100%' : 'min(480px, 100%)', maxHeight: '92dvh', overflowY: 'auto', background: C.surface,
           borderRadius: phone ? '24px 24px 0 0' : 24, border: '1px solid #2D3240',
           padding: phone ? '12px 20px max(28px, env(safe-area-inset-bottom))' : 24, display: 'flex', flexDirection: 'column', gap: 16,
