@@ -134,6 +134,23 @@ export function AppProvider({ initial, children }: { initial: AppState; children
   const tz = state.settings.timezone;
   const today = useMemo(() => ymd(new Date(), tz), [tz, clock, state.today]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The day rolled over while the tab stayed open: XP today, quests and the streak come from the
+  // server, so fetch them again. If the server hasn't reached midnight yet, retry once a minute later.
+  useEffect(() => {
+    if (today <= state.today) return;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const refresh = (again: boolean) =>
+      fetch('/api/state', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((s: AppState | null) => {
+          if (s && !inflight.current) setState(s);
+          if (again && (!s || s.today < today)) retry = setTimeout(() => void refresh(false), 60000);
+        })
+        .catch(() => {});
+    void refresh(true);
+    return () => clearTimeout(retry);
+  }, [today]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Theme + density
   useEffect(() => {
     const th = THEMES.find((t) => t.name === state.settings.theme) ?? THEMES[0];

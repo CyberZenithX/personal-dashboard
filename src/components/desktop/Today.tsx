@@ -8,7 +8,7 @@ import { DOW_LONG, MONTH_LONG, dow, fmtMin, fmtTime, minutesOfDay, parts, timeOf
 import { allTagColor, eventsOn, kindLabel } from '@/lib/view';
 
 export function greeting(min: number): string {
-  return min < 12 * 60 ? 'Good morning' : min < 18 * 60 ? 'Good afternoon' : 'Good evening';
+  return min < 5 * 60 ? 'Still up' : min < 12 * 60 ? 'Good morning' : min < 18 * 60 ? 'Good afternoon' : 'Good evening';
 }
 
 export function scoreMessage(score: number, checkins: number): string {
@@ -98,7 +98,7 @@ export default function Today() {
             <span style={{ fontSize: 13, color: C.muted, letterSpacing: '.04em', textTransform: 'uppercase' }}>
               {DOW_LONG[dow(today)]} · {d} {MONTH_LONG[m - 1]}
             </span>
-            <h1 style={{ margin: 0, fontFamily: HEAD, fontSize: 34, fontWeight: 700 }}>{greeting(nowMin)}, {state.userName}</h1>
+            <h1 style={{ margin: 0, fontFamily: HEAD, fontSize: 34, fontWeight: 700 }}>{greeting(nowMin)}, {state.userName}{nowMin < 5 * 60 ? "?" : ""}</h1>
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 99, background: '#2A1D12', border: '1px solid #4A2E16', color: C.accent2, fontWeight: 600, fontSize: 14 }}>
