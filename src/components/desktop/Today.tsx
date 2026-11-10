@@ -1,5 +1,5 @@
 'use client';
-import Link from 'next/link';
+import { AnimatedList, Count, Link } from '@/components/motion';
 import { useMemo, useState } from 'react';
 import { DesktopNav, LevelCard } from '../Nav';
 import { useApp } from '../store';
@@ -8,7 +8,7 @@ import { DOW_LONG, MONTH_LONG, dow, fmtMin, fmtTime, minutesOfDay, parts, timeOf
 import { allTagColor, eventsOn, kindLabel } from '@/lib/view';
 
 export function greeting(min: number): string {
-  return min < 12 * 60 ? 'Good morning' : min < 18 * 60 ? 'Good afternoon' : 'Good evening';
+  return min < 5 * 60 ? 'Still up' : min < 12 * 60 ? 'Good morning' : min < 18 * 60 ? 'Good afternoon' : 'Good evening';
 }
 
 export function scoreMessage(score: number, checkins: number): string {
@@ -40,7 +40,7 @@ export function useTimeline(): TimelineEntry[] {
 }
 
 export default function Today() {
-  const { state, today, tz, toggleTask, openCapture } = useApp();
+  const { state, today, tz, toggleTask, openCapture, openVoice, openTaskMenu } = useApp();
   const [tag, setTag] = useState('All');
   const s = state.settings;
   const p = state.progress;
@@ -51,9 +51,9 @@ export default function Today() {
   const timeline = useTimeline();
   const keys = s.keys;
 
-  const tasks = state.tasks
-    .filter((t) => t.dueDate === today || (t.dueDate && t.dueDate < today && !t.done))
-    .filter((t) => tag === 'All' || t.tag === tag);
+  // Same list as the "Today's tasks" card (before its tag filter), so the counts always match what you see.
+  const listed = state.tasks.filter((t) => t.dueDate === today || (t.dueDate && t.dueDate < today && !t.done));
+  const tasks = listed.filter((t) => tag === 'All' || t.tag === tag);
   const sorted = [...tasks].sort((a, b) => Number(a.done) - Number(b.done) || (a.dueTime ?? '99').localeCompare(b.dueTime ?? '99'));
 
   const meta = (t: (typeof tasks)[number]) => {
@@ -73,7 +73,7 @@ export default function Today() {
 
   const capBtn = (label: string, hint: string, color: string, bg: string, icon: string, onClick: () => void) => (
     <button
-      type="button" onClick={onClick}
+      type="button" data-card onClick={onClick}
       style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 18, borderRadius: 16, background: C.surface, border: `1px solid ${C.border}`, color: C.text, textAlign: 'left', minHeight: 76 }}
     >
       <span style={{ width: 40, height: 40, borderRadius: 12, background: bg, color, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
@@ -98,16 +98,16 @@ export default function Today() {
             <span style={{ fontSize: 13, color: C.muted, letterSpacing: '.04em', textTransform: 'uppercase' }}>
               {DOW_LONG[dow(today)]} · {d} {MONTH_LONG[m - 1]}
             </span>
-            <h1 style={{ margin: 0, fontFamily: HEAD, fontSize: 34, fontWeight: 700 }}>{greeting(nowMin)}, {state.userName}</h1>
+            <h1 style={{ margin: 0, fontFamily: HEAD, fontSize: 34, fontWeight: 700 }}>{greeting(nowMin)}, {state.userName}{nowMin < 5 * 60 ? "?" : ""}</h1>
           </div>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 99, background: '#2A1D12', border: '1px solid #4A2E16', color: C.accent2, fontWeight: 600, fontSize: 14 }}>
               <Svg d={ICON.flame} size={16} />
-              {p.streak}-day streak
+              <Count value={p.streak} />-day streak
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 99, background: C.accentDim, border: `1px solid ${C.accentLine}`, color: C.accent, fontWeight: 600, fontSize: 14 }}>
               <Svg d={ICON.bolt} size={16} />
-              +{p.xpToday} XP today
+              +<Count value={p.xpToday} /> XP today
             </div>
           </div>
         </header>
@@ -116,15 +116,15 @@ export default function Today() {
           {capBtn('Task', keys[0], C.blue, '#1F2A3D', ICON.tasks, () => openCapture({ type: 'task' }))}
           {capBtn('Note', keys[1], C.amber, '#2E2614', ICON.pencil, () => openCapture({ type: 'note' }))}
           {capBtn('Event', keys[2], C.purple, '#2A1C33', ICON.calendar, () => openCapture({ type: 'event' }))}
-          <Link href="/voice" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 18, borderRadius: 16, background: C.accent, color: 'var(--bg)', textDecoration: 'none', minHeight: 76 }}>
+          <button type="button" data-card onClick={openVoice} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 18, borderRadius: 16, border: 'none', background: C.accent, color: 'var(--bg)', textAlign: 'left', minHeight: 76 }}>
             <span style={{ width: 40, height: 40, borderRadius: 99, background: 'var(--bg)', color: C.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
               <Svg d={ICON.mic} size={20} sw={2.2} />
             </span>
             <span style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               <span style={{ fontWeight: 700, fontSize: 15 }}>Just say it</span>
-              <span style={{ fontSize: 12, color: 'color-mix(in srgb, var(--bg) 75%, var(--accent))' }}>{keys[3] === 'Space' ? 'Hold Space' : 'Press ' + keys[3]}</span>
+              <span style={{ fontSize: 12, color: 'color-mix(in srgb, var(--bg) 75%, var(--accent))' }}>Press {keys[3]}</span>
             </span>
-          </Link>
+          </button>
         </section>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20, alignItems: 'start' }}>
@@ -133,10 +133,10 @@ export default function Today() {
               <div style={{ position: 'relative', width: 132, height: 132, flex: 'none' }}>
                 <svg width="132" height="132" viewBox="0 0 132 132" role="img" aria-label={`Daily score ${day.score} of 100`}>
                   <circle cx="66" cy="66" r="54" fill="none" stroke="#262B36" strokeWidth="12" />
-                  <circle cx="66" cy="66" r="54" fill="none" stroke="var(--accent)" strokeWidth="12" strokeLinecap="round" strokeDasharray={`${((ring * day.score) / 100).toFixed(1)} ${ring}`} transform="rotate(-90 66 66)" style={{ transition: 'stroke-dasharray .6s' }} />
+                  <circle cx="66" cy="66" r="54" fill="none" stroke="var(--accent)" strokeWidth="12" strokeLinecap="round" strokeDasharray={`${((ring * day.score) / 100).toFixed(1)} ${ring}`} transform="rotate(-90 66 66)" className="ring-in" style={{ transition: 'stroke-dasharray .6s var(--ease-out)' }} />
                 </svg>
                 <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                  <span style={{ fontFamily: HEAD, fontSize: 36, fontWeight: 700 }}>{day.score}</span>
+                  <span style={{ fontFamily: HEAD, fontSize: 36, fontWeight: 700 }}><Count value={day.score} /></span>
                   <span style={{ fontSize: 12, color: C.muted }}>day score</span>
                 </div>
               </div>
@@ -144,7 +144,7 @@ export default function Today() {
                 <h2 style={{ margin: 0, fontFamily: HEAD, fontSize: 18 }}>{scoreMessage(day.score, day.checkins)}</h2>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 13, color: '#C3C9D4' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Check-ins</span><span style={{ color: '#fff', fontWeight: 600 }}>{day.checkins} / {s.goal}</span></div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tasks done</span><span style={{ color: '#fff', fontWeight: 600 }}>{day.tasksDone} / {day.tasksTotal}</span></div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Tasks done (today + overdue)</span><span style={{ color: '#fff', fontWeight: 600 }}>{listed.filter((t) => t.done).length} / {listed.length}</span></div>
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}><span>Notes logged</span><span style={{ color: '#fff', fontWeight: 600 }}>{day.notes}</span></div>
                 </div>
                 <span style={{ fontSize: 12, color: need ? C.accent2 : C.accent }}>
@@ -169,13 +169,15 @@ export default function Today() {
               </div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {!sorted.length && <span style={{ fontSize: 13, color: C.dim, padding: '8px 4px' }}>Nothing due today. Press {keys[0]} to add a task.</span>}
+                <AnimatedList>
                 {sorted.map((t) => (
+                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', borderRadius: 12, background: t.done ? C.accentRow : C.surface2, transition: 'background .25s' }}>
                   <button
-                    key={t.id} type="button" onClick={() => toggleTask(t.id)} aria-pressed={t.done}
-                    style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 12, borderRadius: 12, background: t.done ? C.accentRow : C.surface2, border: '1px solid transparent', color: C.text, textAlign: 'left', minHeight: 52, transition: 'background .25s' }}
+                    type="button" data-row onClick={() => toggleTask(t.id)} aria-pressed={t.done} aria-label={`${t.done ? 'Mark not done' : 'Complete'}: ${t.title}`}
+                    style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 14, padding: 12, borderRadius: 12, background: 'transparent', border: '1px solid transparent', color: C.text, textAlign: 'left', minHeight: 52 }}
                   >
                     <span style={{ width: 22, height: 22, borderRadius: 7, border: `2px solid ${t.done ? C.accent : '#4A5160'}`, background: t.done ? C.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', transition: 'all .2s' }}>
-                      {t.done && <Svg d={ICON.check} size={14} sw={3.5} color="var(--bg)" />}
+                      {t.done && <Svg className="tick" d={ICON.check} size={14} sw={3.5} color="var(--bg)" />}
                     </span>
                     <span style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 3, minWidth: 0 }}>
                       <span style={{ fontSize: 14, fontWeight: 500, textDecoration: t.done ? 'line-through' : 'none', color: t.done ? C.dim : C.text }}>{t.title}</span>
@@ -183,7 +185,12 @@ export default function Today() {
                     </span>
                     <span style={{ fontSize: 12, fontWeight: 600, color: t.done ? C.accent : C.dim }}>+{t.xp} XP</span>
                   </button>
+                  <button type="button" className="row-actions" aria-label={`Edit, reschedule or delete: ${t.title}`} onClick={() => openTaskMenu(t.id)} style={{ width: 36, height: 36, marginRight: 8, flex: 'none', borderRadius: 8, border: 'none', background: 'transparent', color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Svg d={ICON.dots} size={18} sw={3} />
+                  </button>
+                  </div>
                 ))}
+                </AnimatedList>
               </div>
             </section>
           </div>
@@ -192,7 +199,7 @@ export default function Today() {
             <section aria-label="Today timeline" style={{ padding: 22, borderRadius: 18, background: C.surface, border: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2 style={{ margin: 0, fontFamily: HEAD, fontSize: 18 }}>Your day so far</h2>
-                {s.pages.Calendar && <Link href="/calendar" style={{ fontSize: 13, textDecoration: 'none' }}>Open calendar</Link>}
+                {s.pages.Calendar && <Link href="/calendar" style={{ fontSize: 13, textDecoration: 'none', padding: '6px 4px', margin: '-6px -4px' }}>Open calendar</Link>}
               </div>
               <div style={{ display: 'flex', flexDirection: 'column' }}>
                 {(() => {

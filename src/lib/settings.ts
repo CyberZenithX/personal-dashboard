@@ -4,7 +4,7 @@ export const DEFAULT_KEYS: [string, string][] = [
   ['New task', 'T'],
   ['New note', 'N'],
   ['New event', 'E'],
-  ['Hold to talk', 'Space'],
+  ['Talk (voice capture)', 'Space'],
   ['Complete selected', 'X'],
   ['Push to tomorrow', 'Shift + →'],
   ['Search everything', 'Ctrl + K']
@@ -91,12 +91,15 @@ export function buildPrompt(s: Pick<Settings, 'taskTags' | 'noteTags' | 'flags'>
   const list = (arr: [string, string][]) => arr.map((t) => t[0]).join(', ') || '(none)';
   return (
     'You sort what the user typed or said into items.\n' +
-    'Return JSON only: { "items": [ { "type": "task" | "note" | "event", "title": string, "tag": string, "due": string | null } ] }\n\n' +
+    'Return JSON only: { "items": [ { "type": "task" | "note" | "event"' + (s.flags.matchTasks ? ' | "complete"' : '') +
+    ', "title": string, "tag": string, "body": string | null, "date": "YYYY-MM-DD" | null, "time": "HH:MM" | null, "endTime": "HH:MM" | null' +
+    (s.flags.matchTasks ? ', "taskId": number | null' : '') + ' } ] }\n' +
+    'Only fill date / time when the user actually said one.\n\n' +
     'Allowed task tags: ' + list(s.taskTags) + '\n' +
     'Allowed note tags: ' + list(s.noteTags) + '\n' +
     'If nothing fits, use "untagged". Never invent a tag.' +
     (s.flags.matchTasks
-      ? '\nIf the user says they finished something, match it to an open task and return { "type": "complete", "taskId" }.'
+      ? '\nIf the user says they finished something, match it to an open task and return { "type": "complete", "taskId": <its id> }.'
       : '')
   );
 }

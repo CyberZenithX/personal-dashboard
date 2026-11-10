@@ -2,7 +2,13 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { THEMES } from '@/lib/settings';
 import { ymd } from '@/lib/time';
-import type { AppState, EventItem, LevelUp, MutationResult, Settings } from '@/lib/types';
+import type { AppState, EventItem, LevelUp, MutationResult, Note, Settings, Task } from '@/lib/types';
+
+function mergeById<T extends { id: number }>(fresh: T[], extra: T[]): T[] {
+  if (!extra.length) return fresh;
+  const ids = new Set(fresh.map((x) => x.id));
+  return [...fresh, ...extra.filter((x) => !ids.has(x.id))];
+}
 
 export type CaptureReq =
   | { type: 'task'; title?: string; tag?: string }
@@ -29,12 +35,25 @@ interface Store {
   openTaskMenu: (id: number | null) => void;
   palette: boolean;
   setPalette: (v: boolean) => void;
+  /** Voice capture opens as an overlay on top of the current page. */
+  voiceOpen: boolean;
+  openVoice: () => void;
+  closeVoice: () => void;
   selectedTask: number | null;
   setSelectedTask: (id: number | null) => void;
   act: (method: 'POST' | 'PATCH' | 'DELETE' | 'PUT', url: string, body?: unknown) => Promise<MutationResult | null>;
   setSettings: (patch: SettingsPatch) => void;
   toggleTask: (id: number) => void;
+  /** Recent notes plus any older ones loaded with loadOlder('notes'). */
+  allNotes: Note[];
+  /** Tasks in the app state plus older finished ones loaded with loadOlder('tasks'). */
+  allTasks: Task[];
+  loadOlder: (kind: 'notes' | 'tasks') => Promise<void>;
+  moreNotes: boolean;
+  moreTasks: boolean;
 }
+
+interface Older { notes: Note[]; tasks: Task[]; notesMore: boolean; tasksMore: boolean }
 
 const Ctx = createContext<Store | null>(null);
 
@@ -73,6 +92,7 @@ export function AppProvider({ initial, children }: { initial: AppState; children
   const [capture, setCapture] = useState<CaptureReq | null>(null);
   const [menuTaskId, setMenuTaskId] = useState<number | null>(null);
   const [palette, setPalette] = useState(false);
+  const [voiceOpen, setVoiceOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<number | null>(null);
   const [saveState, setSaveState] = useState<'saved' | 'saving'>('saved');
   const [clock, setClock] = useState(0);
@@ -114,6 +134,23 @@ export function AppProvider({ initial, children }: { initial: AppState; children
   const tz = state.settings.timezone;
   const today = useMemo(() => ymd(new Date(), tz), [tz, clock, state.today]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The day rolled over while the tab stayed open: XP today, quests and the streak come from the
+  // server, so fetch them again. If the server hasn't reached midnight yet, retry once a minute later.
+  useEffect(() => {
+    if (today <= state.today) return;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const refresh = (again: boolean) =>
+      fetch('/api/state', { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((s: AppState | null) => {
+          if (s && !inflight.current) setState(s);
+          if (again && (!s || s.today < today)) retry = setTimeout(() => void refresh(false), 60000);
+        })
+        .catch(() => {});
+    void refresh(true);
+    return () => clearTimeout(retry);
+  }, [today]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Theme + density
   useEffect(() => {
     const th = THEMES.find((t) => t.name === state.settings.theme) ?? THEMES[0];
@@ -131,8 +168,35 @@ export function AppProvider({ initial, children }: { initial: AppState; children
     toastTimer.current = setTimeout(() => setToast(null), 2200);
   }, []);
 
+  /** Sends the queued settings change now (if any). Resolves once it has been saved or failed. */
+  const saveSettingsNow = useRef<() => Promise<void>>(async () => {});
+  saveSettingsNow.current = async () => {
+    clearTimeout(saveTimer.current);
+    const body = pendingPatch.current;
+    if (!Object.keys(body).length) return;
+    pendingPatch.current = {};
+    inflight.current++;
+    try {
+      const res = await fetch('/api/settings', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+      if (res.status === 401) { window.location.href = '/login'; return; }
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(json.error || "Couldn't save settings");
+      if (!Object.keys(pendingPatch.current).length) setState(json.state);
+      setSaveState(Object.keys(pendingPatch.current).length ? 'saving' : 'saved');
+    } catch (err) {
+      flash(err instanceof Error ? err.message : "Couldn't save settings");
+      setSaveState('saved');
+      // put the screen back to what the server actually has
+      fetch('/api/state', { cache: 'no-store' }).then((r) => r.json()).then(setState).catch(() => {});
+    } finally {
+      inflight.current--;
+    }
+  };
+
   const act = useCallback<Store['act']>(
     async (method, url, body) => {
+      // A settings change still waiting to be sent goes first, so it can't overwrite this write afterwards.
+      await saveSettingsNow.current();
       inflight.current++;
       try {
         const res = await fetch(url, {
@@ -144,13 +208,27 @@ export function AppProvider({ initial, children }: { initial: AppState; children
           window.location.href = '/login';
           return null;
         }
-        const json = await res.json();
+        const json = await res.json().catch(() => ({ error: `Request failed (${res.status})` }));
         if (!res.ok) throw new Error(json.error || 'Request failed');
         const r = json as MutationResult;
         setState(r.state);
         if (r.toast) flash(r.toast);
         if (r.levelUp) setLevelUp(r.levelUp);
         if (r.toast && stateRef.current.settings.flags.sounds) playClick();
+        // keep "older" items (loaded on demand) in step with edits
+        const m = /^\/api\/(notes|tasks)\/(\d+)$/.exec(url);
+        if (m) {
+          const kind = m[1] as 'notes' | 'tasks';
+          const id = Number(m[2]);
+          if (olderRef.current[kind].some((x) => x.id === id)) {
+            if (method === 'DELETE') setOlder((o) => ({ ...o, [kind]: o[kind].filter((x) => x.id !== id) }));
+            else {
+              fetch(url, { cache: 'no-store' }).then((x) => (x.ok ? x.json() : null)).then((item) => {
+                if (item) setOlder((o) => ({ ...o, [kind]: o[kind].map((x) => (x.id === id ? item : x)) }));
+              }).catch(() => {});
+            }
+          }
+        }
         return r;
       } catch (err) {
         flash(err instanceof Error ? err.message : 'Something went wrong');
@@ -181,23 +259,33 @@ export function AppProvider({ initial, children }: { initial: AppState; children
     };
     setSaveState('saving');
     clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(async () => {
-      const body = pendingPatch.current;
-      pendingPatch.current = {};
-      inflight.current++;
-      try {
-        const res = await fetch('/api/settings', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-        const json = await res.json();
-        if (res.ok && !Object.keys(pendingPatch.current).length) setState(json.state);
-        if (!res.ok) throw new Error(json.error);
-        setSaveState(Object.keys(pendingPatch.current).length ? 'saving' : 'saved');
-      } catch {
-        flash("Couldn't save settings");
-        setSaveState('saved');
-      } finally {
-        inflight.current--;
-      }
-    }, 450);
+    saveTimer.current = setTimeout(() => void saveSettingsNow.current(), 450);
+  }, []);
+
+  /* ---- older notes / finished tasks, loaded on demand (the app state only carries recent ones) */
+  const [older, setOlder] = useState<Older>({ notes: [], tasks: [], notesMore: true, tasksMore: true });
+  const olderRef = useRef(older);
+  olderRef.current = older;
+  const loadOlder = useCallback(async (kind: 'notes' | 'tasks') => {
+    const s = stateRef.current;
+    const o = olderRef.current;
+    const pool = kind === 'notes'
+      ? [...s.notes, ...o.notes].map((n) => n.createdAt)
+      : [...s.tasks, ...o.tasks].filter((t) => t.done && t.doneAt).map((t) => t.doneAt as string);
+    const before = pool.length ? pool.reduce((a, b) => (a < b ? a : b)) : new Date().toISOString();
+    try {
+      const res = await fetch(`/api/${kind}?before=${encodeURIComponent(before)}`, { cache: 'no-store' });
+      const json = (await res.json()) as { items: (Note | Task)[]; more: boolean };
+      if (!res.ok) throw new Error();
+      setOlder((x) => ({
+        ...x,
+        [kind]: [...x[kind], ...json.items.filter((it) => !(x[kind] as { id: number }[]).some((y) => y.id === it.id))],
+        [kind === 'notes' ? 'notesMore' : 'tasksMore']: json.more
+      }));
+      if (!json.items.length) flash(kind === 'notes' ? 'No older notes' : 'No older finished tasks');
+    } catch {
+      flash("Couldn't load older items");
+    }
   }, [flash]);
 
   // Remember the browser's timezone the first time (or when travelling).
@@ -226,7 +314,14 @@ export function AppProvider({ initial, children }: { initial: AppState; children
     dismissLevelUp: () => setLevelUp(null),
     capture, openCapture: setCapture, closeCapture: () => setCapture(null),
     menuTaskId, openTaskMenu: setMenuTaskId, palette, setPalette,
-    selectedTask, setSelectedTask, act, setSettings, toggleTask
+    voiceOpen, openVoice: () => { setCapture(null); setPalette(false); setVoiceOpen(true); }, closeVoice: () => setVoiceOpen(false),
+    selectedTask, setSelectedTask, act, setSettings, toggleTask,
+    allNotes: mergeById(state.notes, older.notes),
+    allTasks: mergeById(state.tasks, older.tasks),
+    loadOlder,
+    // the server sends at most 300 notes; anything less means we already have them all
+    moreNotes: older.notesMore && state.notes.length >= 300,
+    moreTasks: older.tasksMore
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

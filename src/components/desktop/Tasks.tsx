@@ -1,6 +1,8 @@
 'use client';
-import { useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
 import { DesktopNav, LevelCard } from '../Nav';
+import { AnimatedList } from '../motion';
 import { useApp } from '../store';
 import { C, HEAD, ICON, Svg, visuallyHidden } from '../ui';
 import { parseQuick } from '@/lib/parse';
@@ -30,16 +32,35 @@ export function groupTasks(tasks: Task[], view: TaskView, today: string, tz: str
 }
 
 export default function Tasks() {
-  const { state, today, tz, act, toggleTask, openTaskMenu, selectedTask, setSelectedTask } = useApp();
+  const { state, today, tz, act, toggleTask, openTaskMenu, selectedTask, setSelectedTask, allTasks, moreTasks, loadOlder } = useApp();
   const s = state.settings;
   const p = state.progress;
   const [view, setView] = useState<TaskView>('Today');
   const [tag, setTag] = useState('All');
+  const params = useSearchParams();
+  // ?task=ID (from search): show the view that contains it, select it and scroll to it
+  useEffect(() => {
+    const id = Number(params.get('task'));
+    const t = id ? allTasks.find((x) => x.id === id) : undefined;
+    if (!t) return;
+    const g = taskGroup(t, today);
+    setTag('All');
+    setView(t.done ? 'Done' : g === 'Someday' ? 'Someday' : g === 'Overdue' || g === 'Today' || g === 'Tomorrow' ? 'Today' : 'Upcoming');
+    setSelectedTask(id);
+    setTimeout(() => {
+      const el = document.querySelector<HTMLElement>(`[data-task-id="${id}"]`);
+      el?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      el?.focus({ preventScroll: true });
+    }, 60);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params]);
+  const selTask = allTasks.find((t) => t.id === selectedTask);
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState(false);
+  const [literal, setLiteral] = useState(false);
 
-  const parsed = useMemo(() => parseQuick(draft, today), [draft, today]);
-  const visible = state.tasks.filter((t) => tag === 'All' || t.tag === tag);
+  const parsed = useMemo(() => (literal ? { title: draft, tag: null, date: null, time: null } : parseQuick(draft, today)), [draft, today, literal]);
+  const visible = allTasks.filter((t) => tag === 'All' || t.tag === tag);
   const groups = groupTasks(visible, view, today, tz);
   const doneTodayCount = state.tasks.filter((t) => t.done && t.doneAt && ymd(new Date(t.doneAt), tz) === today).length;
 
@@ -56,13 +77,14 @@ export default function Tasks() {
     e.preventDefault();
     if (!draft.trim() || busy) return;
     setBusy(true);
-    const r = await act('POST', '/api/tasks', { title: draft, parse: true, defaultToday: true });
+    const r = await act('POST', '/api/tasks', { title: draft, parse: !literal });
     setBusy(false);
-    if (r) setDraft('');
+    if (r) { setDraft(''); setLiteral(false); }
   };
 
-  const keyHint = (i: number) => (s.keys[i] === 'Space' ? 'Hold Space' : s.keys[i]);
-  const whenPill = parsed.date ? dueLabel({ dueDate: parsed.date, dueTime: parsed.time, done: false, doneAt: null } as Task, today, tz, s.time) : 'Today';
+  const keyHint = (i: number) => s.keys[i];
+  const whenPill = parsed.date ? dueLabel({ dueDate: parsed.date, dueTime: parsed.time, done: false, doneAt: null } as Task, today, tz, s.time) : 'No date';
+  const detected = !!(parsed.date || parsed.tag);
 
   return (
     <div style={{ minHeight: '100dvh', background: C.bg, color: C.text, display: 'flex', flexWrap: 'wrap', position: 'relative' }}>
@@ -96,25 +118,35 @@ export default function Tasks() {
               placeholder="Add a task — e.g. Pay DEWA bill fri #life"
               style={{ flex: '1 1 260px', minWidth: 0, padding: '10px 0', background: 'transparent', border: 'none', color: '#fff', fontSize: 15, outline: 'none' }}
             />
-            <span style={{ fontSize: 12, color: parsed.date ? C.accent : C.dim, padding: '6px 10px', borderRadius: 8, border: `1px solid ${C.border2}` }}>{whenPill}</span>
-            <span style={{ fontSize: 12, color: parsed.tag ? C.accent : C.dim, padding: '6px 10px', borderRadius: 8, border: `1px solid ${C.border2}` }}>{parsed.tag ?? '#tag'}</span>
+            <span aria-live="polite" style={{ display: 'contents' }}>
+              <span style={{ fontSize: 12, color: parsed.date ? C.accent : C.dim, padding: '6px 10px', borderRadius: 8, border: `1px solid ${C.border2}`, textDecoration: literal ? 'line-through' : 'none' }}>{whenPill}</span>
+              <span style={{ fontSize: 12, color: parsed.tag ? C.accent : C.dim, padding: '6px 10px', borderRadius: 8, border: `1px solid ${C.border2}` }}>{parsed.tag ?? '#tag'}</span>
+            </span>
+            {(detected || literal) && (
+              <button type="button" onClick={() => setLiteral(!literal)} title={literal ? 'Detect the date, time and tag from what you typed' : 'Save the title exactly as typed, with no date, time or tag'} style={{ padding: '6px 10px', borderRadius: 8, border: `1px solid ${C.border2}`, background: 'transparent', color: C.muted, fontSize: 12, minHeight: 32 }}>
+                {literal ? 'Detect' : 'Ignore'}
+              </button>
+            )}
             <button type="submit" disabled={busy} style={{ padding: '10px 16px', borderRadius: 10, border: 'none', background: C.accent, color: 'var(--bg)', fontWeight: 700, fontSize: 13 }}>Add · Enter</button>
           </form>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {['All', ...s.taskTags.map((t) => t[0])].map((g) => {
               const on = tag === g;
-              const count = g === 'All' ? state.tasks.length : state.tasks.filter((t) => t.tag === g).length;
+              const count = state.tasks.filter((t) => !t.done && (g === 'All' || t.tag === g)).length;
               return (
                 <button key={g} type="button" aria-pressed={on} onClick={() => setTag(g)} style={{ padding: '7px 14px', borderRadius: 99, border: `1px solid ${on ? '#5A6273' : C.border2}`, background: on ? '#1C2029' : 'transparent', color: on ? '#fff' : C.muted, fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
                   <span style={{ width: 8, height: 8, borderRadius: 99, background: g === 'All' ? C.accent : allTagColor(s, g) }} />
                   {g}
-                  <span style={{ fontSize: 11, opacity: 0.75 }}>{count}</span>
+                  <span style={{ fontSize: 11, opacity: 0.75 }} aria-label={`${count} open`}>{count}</span>
                 </button>
               );
             })}
           </div>
 
+          <span aria-live="polite" style={visuallyHidden}>
+            {selTask ? `Selected: ${selTask.title}. ${s.keys[4]} to ${selTask.done ? 'mark not done' : 'complete'}, ${s.keys[5]} to push to tomorrow.` : ''}
+          </span>
           {groups.every((g) => !g.items.length) && (
             <div style={{ padding: 28, borderRadius: 14, border: `1px dashed ${C.border2}`, color: C.dim, fontSize: 14, textAlign: 'center' }}>
               {view === 'Done' ? 'Nothing finished yet — go get one.' : 'All clear here. Add a task above or press ' + s.keys[0] + '.'}
@@ -127,16 +159,18 @@ export default function Tasks() {
                 <h2 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: GROUP_COLOR[grp.label], letterSpacing: '.05em', textTransform: 'uppercase' }}>{grp.label}</h2>
                 <span style={{ fontSize: 12, color: C.dim }}>{grp.items.length}</span>
               </div>
+              <AnimatedList>
               {grp.items.map((t) => {
                 const sel = selectedTask === t.id;
                 return (
                   <div
                     key={t.id} tabIndex={0} onFocus={() => setSelectedTask(t.id)} onClick={() => setSelectedTask(t.id)}
-                    style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 'var(--row-pad) 14px', borderRadius: 12, background: t.done ? C.accentRow2 : C.surface, border: `1px solid ${sel ? '#5A6273' : '#22262F'}`, transition: 'background .25s' }}
+                    data-task-id={t.id} data-row role="group" aria-label={t.title} aria-current={sel ? 'true' : undefined}
+                    style={{ outline: sel ? `2px solid ${C.accentLine}` : undefined, outlineOffset: 1, display: 'flex', alignItems: 'center', gap: 14, padding: 'var(--row-pad) 14px', borderRadius: 12, background: t.done ? C.accentRow2 : C.surface, border: `1px solid ${sel ? '#5A6273' : '#22262F'}`, transition: 'background .25s' }}
                   >
                     <button type="button" onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }} aria-pressed={t.done} aria-label={`Complete ${t.title}`} style={{ width: 44, height: 44, margin: '-11px -8px -11px -11px', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
                       <span style={{ width: 22, height: 22, borderRadius: 7, border: `2px solid ${t.done ? C.accent : '#4A5160'}`, background: t.done ? C.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }}>
-                        {t.done && <Svg d={ICON.check} size={13} sw={3.5} color="var(--bg)" />}
+                        {t.done && <Svg className="tick" d={ICON.check} size={13} sw={3.5} color="var(--bg)" />}
                       </span>
                     </button>
                     <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -155,8 +189,14 @@ export default function Tasks() {
                   </div>
                 );
               })}
+              </AnimatedList>
             </section>
           ))}
+          {view === 'Done' && moreTasks && (
+            <button type="button" onClick={() => void loadOlder('tasks')} style={{ padding: 12, minHeight: 44, borderRadius: 12, border: `1px dashed ${C.border2}`, background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600 }}>
+              Load older finished tasks
+            </button>
+          )}
         </div>
 
         <aside style={{ flex: '1 1 300px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 16 }}>

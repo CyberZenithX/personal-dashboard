@@ -1,8 +1,9 @@
 'use client';
-import { useRouter } from 'next/navigation';
+import { useNav } from '../motion';
 import { useState, type ReactNode } from 'react';
 import { Modal } from '../CaptureSheet';
-import { DataActions, PromptPreview, ShortcutsEditor, TagGroup } from '../settingsParts';
+import { Presence } from '../motion';
+import { DataActions, NotifyRow, onReminderToggle, PromptPreview, ShortcutsEditor, TagGroup } from '../settingsParts';
 import { useApp } from '../store';
 import { C, HEAD, ICON, Svg, Toggle } from '../ui';
 import { LISTEN_MODELS, SORT_MODELS, THEMES } from '@/lib/settings';
@@ -26,11 +27,11 @@ interface Row {
 
 export default function PhoneSettings() {
   const { state, setSettings, saveState } = useApp();
-  const router = useRouter();
+  const router = useNav();
   const s = state.settings;
   const level = state.progress.level;
   const [sheet, setSheet] = useState<string | null>(null);
-  const flag = (k: keyof Settings['flags']) => ({ on: s.flags[k], flip: () => setSettings({ flags: { [k]: !s.flags[k] } }) });
+  const flag = (k: keyof Settings['flags']) => ({ on: s.flags[k], flip: () => { onReminderToggle(k, !s.flags[k]); setSettings({ flags: { [k]: !s.flags[k] } }); } });
   const page = (k: 'Tasks' | 'Notes' | 'Calendar') => ({ on: s.pages[k], flip: () => setSettings({ pages: { [k]: !s.pages[k] } }) });
 
   const groups: { title: string; rows: Row[] }[] = [
@@ -43,7 +44,7 @@ export default function PhoneSettings() {
       { label: 'Note hashtags', icon: I.hash, color: C.amber, sub: s.noteTags.map((t) => t[0]).join(' '), value: String(s.noteTags.length), sheet: 'noteTags' }] },
     { title: 'Shortcuts', rows: [
       { label: 'Keyboard shortcuts', icon: I.key, color: C.muted, value: String(s.keys.length), sheet: 'keys' },
-      { label: 'Hold mic to talk', icon: ICON.mic, color: C.accent, sub: 'The mic button is on every screen', value: '' }] },
+      { label: 'Talk to log', icon: ICON.mic, color: C.accent, sub: 'Tap the mic on Today or in the tab bar', value: '' }] },
     { title: 'Voice and AI', rows: [
       { label: 'Listening model', icon: ICON.mic, color: C.accent, value: s.listenModel.replace('Gemini ', ''), sheet: 'listen' },
       { label: 'Sorting model', icon: ICON.bolt, color: C.accent, value: s.sortModel.replace('Gemini ', ''), sheet: 'sort' },
@@ -60,7 +61,8 @@ export default function PhoneSettings() {
       { label: 'Time format', icon: ICON.today, color: C.muted, value: s.time, sheet: 'time' }] },
     { title: 'Reminders', rows: [
       { label: 'Check-in nudges', icon: I.bell, color: C.coral, sub: 'After 4 hours with no log', sw: flag('nudges') },
-      { label: 'Evening check-in', icon: I.bell, color: C.coral, sw: flag('evening'), sub: s.eveningTime, sheet: 'evening' }] },
+      { label: 'Evening check-in', icon: I.bell, color: C.coral, sw: flag('evening'), sub: s.eveningTime, sheet: 'evening' },
+      { label: 'Notifications', icon: I.bell, color: C.muted, sub: 'Allow or check notification permission', sheet: 'notify', value: '' }] },
     { title: 'Data', rows: [
       { label: 'Export, import and reset', icon: I.box, color: C.muted, sheet: 'data', value: '' },
       { label: 'Connect Google Calendar', icon: ICON.calendar, color: C.muted, soon: true }] },
@@ -95,6 +97,7 @@ export default function PhoneSettings() {
     case 'density': title = 'Density'; body = <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{(['Comfortable', 'Compact'] as const).map((o) => opt(o, s.density === o, () => setSettings({ density: o })))}</div>; break;
     case 'week': title = 'Week starts on'; body = <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{(['Mon', 'Sun'] as const).map((o) => opt(o, s.week === o, () => setSettings({ week: o })))}</div>; break;
     case 'time': title = 'Time format'; body = <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{(['24h', '12h'] as const).map((o) => opt(o, s.time === o, () => setSettings({ time: o })))}</div>; break;
+    case 'notify': title = 'Notifications'; body = <NotifyRow />; break;
     case 'evening': title = 'Evening check-in time';
       body = <input type="time" aria-label="Evening check-in time" value={s.eveningTime} onChange={(e) => e.target.value && setSettings({ eveningTime: e.target.value })} style={{ padding: 14, borderRadius: 12, background: C.bg, border: '1px solid #3A404D', color: '#fff', fontSize: 18, colorScheme: 'dark' }} />; break;
     case 'data': title = 'Data'; body = <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}><DataActions phone /></div>; break;
@@ -104,7 +107,7 @@ export default function PhoneSettings() {
 
   return (
     <div style={{ background: C.bg, color: C.text, minHeight: '100dvh' }}>
-      <div style={{ padding: 'max(20px, env(safe-area-inset-top)) 20px 48px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div style={{ padding: 'max(20px, env(safe-area-inset-top)) 20px 130px', display: 'flex', flexDirection: 'column', gap: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button type="button" onClick={() => router.back()} aria-label="Back" style={{ width: 44, height: 44, borderRadius: 12, border: 'none', background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.text }}>
             <Svg d={ICON.back} sw={2.4} />
@@ -154,13 +157,13 @@ export default function PhoneSettings() {
         <span style={{ textAlign: 'center', fontSize: 12, color: '#5A6273' }}>Daylog · free forever · your data, your Neon database</span>
       </div>
 
-      {sheet && body && (
+      <Presence show={!!(sheet && body)}>
         <Modal label={title} onClose={() => setSheet(null)}>
           <h2 style={{ margin: 0, fontFamily: HEAD, fontSize: 18 }}>{title}</h2>
           {body}
           <button type="button" onClick={() => setSheet(null)} style={{ padding: 14, borderRadius: 14, border: 'none', background: C.accent, color: 'var(--bg)', fontSize: 15, fontWeight: 700 }}>Done</button>
         </Modal>
-      )}
+      </Presence>
     </div>
   );
 }

@@ -1,24 +1,27 @@
 'use client';
-import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Presence } from '../motion';
 import { NoteDetail } from '../NoteDetail';
 import { useApp } from '../store';
-import { C, HEAD, ICON, Svg } from '../ui';
+import { C, HEAD, ICON, Svg, useDialogFocus } from '../ui';
 import { fmtTime, timeOfDayFromIso } from '@/lib/time';
 import type { Note } from '@/lib/types';
 import { allTagColor, dayLabel, kindLabel } from '@/lib/view';
 
 export default function PhoneNotes() {
-  const { state, today, tz, openCapture } = useApp();
+  const { state, today, tz, openCapture, allNotes, moreNotes, loadOlder } = useApp();
   const s = state.settings;
   const [q, setQ] = useState('');
   const [chip, setChip] = useState('All');
   const [open, setOpen] = useState<number | null>(null);
+  const params = useSearchParams();
   useEffect(() => {
-    const id = Number(new URLSearchParams(window.location.search).get('note'));
+    const id = Number(params.get('note'));
     if (id) setOpen(id);
-  }, []);
+  }, [params]);
 
-  const list = state.notes.filter((n) =>
+  const list = allNotes.filter((n) =>
     (chip === 'All' || (chip === 'From voice' ? n.source === 'voice' : n.tag === chip)) &&
     (!q.trim() || (n.title + ' ' + n.body).toLowerCase().includes(q.trim().toLowerCase()))
   );
@@ -28,19 +31,19 @@ export default function PhoneNotes() {
     const g = groups.find((x) => x.label === label);
     if (g) g.notes.push(n); else groups.push({ label, notes: [n] });
   }
-  const eveningDone = state.notes.some((n) => n.source === 'evening' && dayLabel(n.createdAt, today, tz) === 'Today');
-  const cur = state.notes.find((n) => n.id === open);
+  const eveningDone = allNotes.some((n) => n.source === 'evening' && dayLabel(n.createdAt, today, tz) === 'Today');
+  const cur = allNotes.find((n) => n.id === open);
 
   return (
     <div style={{ background: C.bg, color: C.text, minHeight: '100dvh' }}>
       <div style={{ padding: '24px 20px 130px', display: 'flex', flexDirection: 'column', gap: 16 }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h1 style={{ margin: 0, fontFamily: HEAD, fontSize: 26 }}>Notes</h1>
-          <span style={{ fontSize: 13, color: C.muted }}>{state.notes.length} note{state.notes.length === 1 ? '' : 's'}</span>
+          <span style={{ fontSize: 13, color: C.muted }}>{allNotes.length}{moreNotes ? '+' : ''} note{allNotes.length === 1 ? '' : 's'}</span>
         </div>
         <label htmlFor="msearch" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 14px', borderRadius: 12, background: C.surface, border: `1px solid ${C.border2}` }}>
           <Svg d={ICON.search} size={16} sw={2.2} color={C.dim} />
-          <input id="msearch" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search everything" style={{ flex: 1, minWidth: 0, padding: '13px 0', background: 'transparent', border: 'none', color: '#fff', fontSize: 16, outline: 'none' }} />
+          <input id="msearch" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search notes" style={{ flex: 1, minWidth: 0, padding: '13px 0', background: 'transparent', border: 'none', color: '#fff', fontSize: 16, outline: 'none' }} />
         </label>
         <div style={{ display: 'flex', gap: 6, overflowX: 'auto', margin: '0 -20px', padding: '0 20px', flex: 'none' }}>
           {['All', ...s.noteTags.map((t) => t[0]), 'From voice'].map((c) => (
@@ -54,7 +57,7 @@ export default function PhoneNotes() {
           <button type="button" onClick={() => openCapture({ type: 'note', evening: true, title: 'Best part of the day' })} style={{ padding: 16, borderRadius: 16, background: '#2E2614', border: '1px solid #4A3D1C', display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'left', color: '#FFF3D6' }}>
             <span style={{ fontSize: 11, fontWeight: 700, color: C.amber, letterSpacing: '.06em' }}>EVENING CHECK-IN · +5 XP</span>
             <span style={{ fontSize: 16, fontWeight: 600 }}>What was the best part of today?</span>
-            <span style={{ fontSize: 12, color: '#E0C68E' }}>Tap to type, or hold the mic to say it</span>
+            <span style={{ fontSize: 12, color: '#E0C68E' }}>Tap to write it down</span>
           </button>
         )}
 
@@ -83,20 +86,44 @@ export default function PhoneNotes() {
             </div>
           </div>
         ))}
+        {moreNotes && (
+            <button type="button" onClick={() => void loadOlder('notes')} style={{ padding: 12, minHeight: 44, borderRadius: 12, border: `1px dashed ${C.border2}`, background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600 }}>
+              Load older notes
+            </button>
+          )}
       </div>
 
       <button type="button" aria-label="New note" onClick={() => openCapture({ type: 'note' })} style={{ position: 'fixed', right: 20, bottom: 'calc(104px + env(safe-area-inset-bottom))', width: 56, height: 56, borderRadius: 18, border: 'none', background: C.amber, color: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 24px rgba(255,200,92,.3)', zIndex: 15 }}>
         <Svg d={ICON.pencil} size={22} sw={2.4} />
       </button>
 
-      {cur && (
-        <div role="dialog" aria-modal="true" aria-label={cur.title} style={{ position: 'fixed', inset: 0, zIndex: 50, background: C.bg, overflowY: 'auto', padding: '16px 20px max(32px, env(safe-area-inset-bottom))' }}>
-          <button type="button" onClick={() => setOpen(null)} aria-label="Back to notes" style={{ width: 44, height: 44, borderRadius: 12, border: 'none', background: C.surface, color: C.text, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
-            <Svg d={ICON.back} sw={2.4} />
-          </button>
+      <Presence show={!!cur} ms={220}>
+        {cur && <NoteSheet title={cur.title} onClose={() => setOpen(null)}>
           <NoteDetail note={cur} compact onDeleted={() => setOpen(null)} />
-        </div>
-      )}
+        </NoteSheet>}
+      </Presence>
+    </div>
+  );
+}
+
+/** Full-screen note view: Esc or Back closes it (Esc first cancels an edit in progress). */
+function NoteSheet({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null);
+  useDialogFocus(box);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || document.getElementById('edtitle') || document.querySelectorAll('[aria-modal="true"]').length > 1) return;
+      onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+  return (
+    <div ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} data-anim="push" style={{ outline: 'none', position: 'fixed', inset: 0, zIndex: 50, background: C.bg, overflowY: 'auto', padding: '16px 20px max(32px, env(safe-area-inset-bottom))' }}>
+      <button type="button" onClick={onClose} aria-label="Back to notes" style={{ width: 44, height: 44, borderRadius: 12, border: 'none', background: C.surface, color: C.text, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+        <Svg d={ICON.back} sw={2.4} />
+      </button>
+      {children}
     </div>
   );
 }

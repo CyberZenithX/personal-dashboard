@@ -1,5 +1,4 @@
 'use client';
-import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useApp } from './store';
 import type { SortItem } from '@/lib/types';
@@ -12,6 +11,7 @@ interface SpeechRecognitionLike {
   onresult: ((e: { resultIndex: number; results: ArrayLike<{ 0: { transcript: string }; isFinal: boolean }> }) => void) | null;
   onerror: ((e: { error: string }) => void) | null;
   onend: (() => void) | null;
+  onstart?: (() => void) | null;
   start(): void;
   stop(): void;
   abort(): void;
@@ -38,15 +38,19 @@ function b64(bytes: Uint8Array): string {
   return btoa(s);
 }
 
-export function useVoice() {
+/** `onDone` runs when capture is saved or cancelled (closes the overlay, or leaves the /voice page). */
+export function useVoice(onDone: () => void) {
   const { state, act, flash } = useApp();
-  const router = useRouter();
+  const done = useRef(onDone);
+  done.current = onDone;
   const [mode, setMode] = useState<VoiceMode>('listening');
   const [finalText, setFinalText] = useState('');
   const [interim, setInterim] = useState('');
   const [typed, setTyped] = useState('');
   const [source, setSource] = useState<VoiceSource>('browser');
   const [starting, setStarting] = useState(true);
+  /** true once audio is really flowing (browser recogniser started, or Gemini Live connected) */
+  const [ready, setReady] = useState(false);
   const [showTyping, setShowTyping] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [elapsed, setElapsed] = useState(0);
@@ -108,6 +112,7 @@ export function useVoice() {
       setFinalText(lastFinal.current);
       setInterim(tmp);
     };
+    r.onstart = () => setReady(true);
     r.onerror = (e) => {
       if (e.error === 'no-speech' || e.error === 'aborted') return;
       active.current = false;
@@ -245,6 +250,7 @@ export function useVoice() {
 
       live.current = { session: session as LiveSession, ctx, stream, lastAt: Date.now() };
       active.current = true;
+      setReady(true);
       setSource('live');
       setUsedModel(label);
       return true;
@@ -285,12 +291,12 @@ export function useVoice() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // timer
+  // timer (only counts while the mic is actually on)
   useEffect(() => {
-    if (mode !== 'listening') return;
+    if (mode !== 'listening' || !ready) return;
     const t = setInterval(() => setElapsed((s) => s + 1), 1000);
     return () => clearInterval(t);
-  }, [mode]);
+  }, [mode, ready]);
 
   // live sorting while speaking / typing
   useEffect(() => {
@@ -318,16 +324,16 @@ export function useVoice() {
   const saveItems = useCallback(async (list: SortItem[], transcript: string) => {
     setMode('saving');
     const r = await act('POST', '/api/capture', { transcript, items: list });
-    if (r) router.push('/');
+    if (r) done.current();
     else setMode('review');
-  }, [act, router]);
+  }, [act]);
 
   const finish = async () => {
     if (mode !== 'listening') return;
     setMode('saving');
     await stopListening();
     const t = textRef.current;
-    if (!t) { flash('Nothing heard'); router.push('/'); return; }
+    if (!t) { flash('Nothing heard'); done.current(); return; }
     const list = await sortNow(t);
     if (!list.length) { flash("Couldn't find anything to save"); setMode('review'); return; }
     const s = state.settings;
@@ -340,7 +346,7 @@ export function useVoice() {
     active.current = false;
     try { rec.current?.abort(); } catch { /* ignore */ }
     teardownLive();
-    router.push('/');
+    done.current();
   };
 
   const xp = items.reduce((a, it) => a + (it.type === 'complete' ? state.tasks.find((t) => t.id === it.taskId)?.xp ?? 10 : 5), 0);
@@ -354,8 +360,9 @@ export function useVoice() {
     : 'Built-in sorter';
 
   return {
-    mode, text, settled: text, interim, finalText, typed, setTyped, supported, starting, source, chip, showTyping, setShowTyping, error, elapsed, items, setItems,
-    engine, sorting, xp, finish, cancel, saveReview: () => saveItems(items, text), removeItem: (i: number) => setItems((l) => l.filter((_, j) => j !== i))
+    mode, text, settled: text, interim, finalText, typed, setTyped, supported, starting, ready, source, chip, showTyping, setShowTyping, error, elapsed, items, setItems,
+    engine, sorting, xp, finish, cancel, saveReview: () => saveItems(items, text), removeItem: (i: number) => setItems((l) => l.filter((_, j) => j !== i)),
+    updateItem: (i: number, patch: Partial<SortItem>) => setItems((l) => l.map((it, j) => (j === i ? { ...it, ...patch } : it)))
   };
 }
 

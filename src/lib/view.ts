@@ -53,9 +53,11 @@ export function dayLabel(iso: string, today: string, tz: string): string {
 }
 
 export function noteWhen(n: Note, today: string, tz: string, mode: '24h' | '12h'): string {
-  const label = dayLabel(n.updatedAt > n.createdAt && n.updatedAt.slice(0, 16) !== n.createdAt.slice(0, 16) ? n.createdAt : n.createdAt, today, tz);
-  if (label === 'Today') return `Today · ${fmtTime(timeOfDayFromIso(n.createdAt, tz), mode)}`;
-  return label;
+  const label = dayLabel(n.createdAt, today, tz);
+  const when = label === 'Today' ? `Today · ${fmtTime(timeOfDayFromIso(n.createdAt, tz), mode)}` : label;
+  // edited more than a minute after it was written
+  const edited = Date.parse(n.updatedAt) - Date.parse(n.createdAt) > 60000;
+  return edited ? `${when} · edited` : when;
 }
 
 export function longDate(day: string): string {

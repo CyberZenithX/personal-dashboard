@@ -1,4 +1,5 @@
 'use client';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { NoteDetail } from '../NoteDetail';
 import { DesktopNav } from '../Nav';
@@ -7,16 +8,17 @@ import { C, HEAD, ICON, Svg } from '../ui';
 import { allTagColor, kindLabel, noteWhen } from '@/lib/view';
 
 export default function Notes() {
-  const { state, today, tz, openCapture } = useApp();
+  const { state, today, tz, openCapture, allNotes, moreNotes, loadOlder } = useApp();
   const s = state.settings;
   const [sel, setSel] = useState<number | null>(null);
   const [book, setBook] = useState('All notes');
   const [q, setQ] = useState('');
 
+  const params = useSearchParams();
   useEffect(() => {
-    const id = Number(new URLSearchParams(window.location.search).get('note'));
-    if (id) setSel(id);
-  }, []);
+    const id = Number(params.get('note'));
+    if (id) { setSel(id); setBook('All notes'); setQ(''); }
+  }, [params]);
 
   const books = useMemo(
     () => [
@@ -26,9 +28,9 @@ export default function Notes() {
     [s.noteTags]
   );
   const activeBook = books.find((b) => b.label === book) ?? books[0];
-  const list = state.notes.filter((n) => (!activeBook.tag || n.tag === activeBook.tag) && (!q.trim() || (n.title + ' ' + n.body).toLowerCase().includes(q.trim().toLowerCase())));
-  const cur = state.notes.find((n) => n.id === sel) ?? list[0] ?? null;
-  const eveningDone = state.notes.some((n) => n.source === 'evening' && new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date(n.createdAt)) === today);
+  const list = allNotes.filter((n) => (!activeBook.tag || n.tag === activeBook.tag) && (!q.trim() || (n.title + ' ' + n.body).toLowerCase().includes(q.trim().toLowerCase())));
+  const cur = allNotes.find((n) => n.id === sel) ?? list[0] ?? null;
+  const eveningDone = allNotes.some((n) => n.source === 'evening' && new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date(n.createdAt)) === today);
 
   return (
     <div style={{ minHeight: '100dvh', background: C.bg, color: C.text, display: 'flex', flexWrap: 'wrap' }}>
@@ -37,7 +39,7 @@ export default function Notes() {
           <span style={{ fontSize: 11, color: C.dim, letterSpacing: '.06em', padding: '0 12px 6px' }}>NOTEBOOKS</span>
           {books.map((b) => {
             const on = b.label === activeBook.label;
-            const count = b.tag ? state.notes.filter((n) => n.tag === b.tag).length : state.notes.length;
+            const count = b.tag ? allNotes.filter((n) => n.tag === b.tag).length : allNotes.length;
             return (
               <button key={b.label} type="button" onClick={() => setBook(b.label)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 10, border: 'none', background: on ? '#1C2029' : 'transparent', color: on ? '#fff' : C.muted, fontSize: 13, textAlign: 'left' }}>
                 <span style={{ width: 8, height: 8, borderRadius: 99, background: b.dot }} />
@@ -89,12 +91,17 @@ export default function Notes() {
               </button>
             );
           })}
+          {moreNotes && (
+            <button type="button" onClick={() => void loadOlder('notes')} style={{ padding: 12, minHeight: 44, borderRadius: 12, border: `1px dashed ${C.border2}`, background: 'transparent', color: C.muted, fontSize: 13, fontWeight: 600 }}>
+              Load older notes
+            </button>
+          )}
         </div>
       </section>
 
       <main style={{ flex: '999 1 480px', minWidth: 0, padding: '28px 48px 48px', display: 'flex', flexDirection: 'column', gap: 20 }}>
         {cur ? (
-          <NoteDetail note={cur} onDeleted={() => setSel(null)} />
+          <div key={cur.id} data-anim="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}><NoteDetail note={cur} onDeleted={() => setSel(null)} /></div>
         ) : (
           <div style={{ margin: 'auto', textAlign: 'center', color: C.dim, fontSize: 14 }}>Select a note, or press {s.keys[1]} to write a new one.</div>
         )}

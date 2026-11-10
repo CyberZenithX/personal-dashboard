@@ -1,8 +1,9 @@
 'use client';
-import Link from 'next/link';
+import { Count, Link } from '@/components/motion';
 import type { CSSProperties, ReactNode } from 'react';
 import { useApp } from './store';
 import { C, HEAD, ICON, Svg } from './ui';
+import { levelPct } from '@/lib/levels';
 
 export const NAV_ITEMS = [
   { label: 'Today', href: '/', d: ICON.today },
@@ -45,7 +46,7 @@ export function DesktopNav({
           const on = n.label === active;
           return (
             <Link
-              key={n.label} href={n.href} aria-current={on ? 'page' : undefined}
+              key={n.label} href={n.href} prefetch aria-current={on ? 'page' : undefined}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12, padding: '11px 12px', borderRadius: 10,
                 background: on ? '#1C2029' : 'transparent', color: on ? '#FFFFFF' : C.muted, textDecoration: 'none',
@@ -67,7 +68,7 @@ export function DesktopNav({
 export function LevelCard({ long }: { long?: boolean }) {
   const { state } = useApp();
   const p = state.progress;
-  const pct = Math.min(100, Math.round((p.xp / Math.max(1, p.nextXp)) * 100)) + '%';
+  const pct = levelPct(p) + '%';
   return (
     <div style={{ marginTop: 'auto', padding: 16, borderRadius: 14, background: C.surface, border: `1px solid ${C.border}`, display: 'flex', flexDirection: 'column', gap: 10 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -78,7 +79,7 @@ export function LevelCard({ long }: { long?: boolean }) {
         <div style={{ height: '100%', width: pct, background: C.accent, borderRadius: 99, transition: 'width .5s' }} />
       </div>
       <span style={{ fontSize: 12, color: C.muted }}>
-        {p.xp.toLocaleString()} / {p.nextXp.toLocaleString()} XP{long ? ` · ${Math.max(0, p.nextXp - p.xp).toLocaleString()} to Level ${Math.min(30, p.level + 1)}` : ''}
+        <Count value={p.xp} /> / {p.nextXp.toLocaleString()} XP{long ? ` · ${Math.max(0, p.nextXp - p.xp).toLocaleString()} to Level ${Math.min(30, p.level + 1)}` : ''}
       </span>
     </div>
   );
@@ -92,8 +93,8 @@ const TABS = [
   { label: 'Progress', href: '/progress', d: ICON.progress }
 ];
 
-export function PhoneTabs({ active }: { active: string }) {
-  const { state } = useApp();
+export function PhoneTabs({ active }: { active?: string }) {
+  const { state, openVoice } = useApp();
   const pages = state.settings.pages as Record<string, boolean>;
   const tabs = TABS.filter((t) => pages[t.label] !== false);
   return (
@@ -107,14 +108,8 @@ export function PhoneTabs({ active }: { active: string }) {
       {tabs.map((tb) => {
         const mic = tb.label === 'Talk';
         const on = tb.label === active;
-        return (
-          <Link
-            key={tb.label} href={tb.href} aria-label={tb.label}
-            style={{
-              flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '6px 0',
-              color: mic ? 'var(--bg)' : on ? C.accent : C.dim, fontSize: 11, fontWeight: 600, textDecoration: 'none', minHeight: 48
-            }}
-          >
+        const inner = (
+          <>
             <span
               style={{
                 width: mic ? 58 : 26, height: mic ? 58 : 26, marginTop: mic ? -28 : 0, borderRadius: 99,
@@ -125,7 +120,16 @@ export function PhoneTabs({ active }: { active: string }) {
               <Svg d={tb.d} size={22} sw={2.2} />
             </span>
             {mic ? '' : tb.label}
-          </Link>
+          </>
+        );
+        const style = {
+          flex: 1, display: 'flex', flexDirection: 'column' as const, alignItems: 'center', gap: 4, padding: '6px 0', border: 'none', background: 'transparent',
+          color: mic ? 'var(--bg)' : on ? C.accent : C.dim, fontSize: 11, fontWeight: 600, textDecoration: 'none', minHeight: 48
+        };
+        return mic ? (
+          <button key={tb.label} type="button" onClick={openVoice} aria-label="Talk: log something by voice" style={style}>{inner}</button>
+        ) : (
+          <Link key={tb.label} href={tb.href} prefetch aria-current={on ? 'page' : undefined} style={style}>{inner}</Link>
         );
       })}
     </nav>

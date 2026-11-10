@@ -121,13 +121,27 @@ function words(s: string): string[] {
     .filter((w) => w.length > 2 && !['the', 'and', 'for', 'with', 'done', 'finished', 'my', 'that', 'this', 'did'].includes(w));
 }
 
+/** Verbs that appear in lots of task titles; matching on one of these alone isn't enough. */
+const GENERIC = new Set(['call', 'email', 'send', 'buy', 'pay', 'book', 'read', 'write', 'finish', 'review', 'reply', 'text', 'check',
+  'meeting', 'meet', 'make', 'get', 'start', 'work', 'task', 'todo', 'plan', 'update', 'fix', 'clean', 'go', 'with', 'from', 'about']);
+
+/**
+ * Find the open task the user says they finished. Needs at least one meaningful (non-generic) word in
+ * common, and either half of the task's words or two words in total — so "finished the call" won't tick
+ * off "Call dentist", but "done with the gym" still finds "Gym — legs" and "just did the proposal" finds "Send client proposal".
+ */
 function matchTask(clause: string, tasks: Ctx['openTasks']): Ctx['openTasks'][number] | null {
   const cw = new Set(words(clause));
-  let best: { t: Ctx['openTasks'][number]; score: number } | null = null;
+  let best: { t: Ctx['openTasks'][number]; strong: number; ratio: number } | null = null;
   for (const t of tasks) {
-    const tw = words(t.title);
-    const hit = tw.filter((w) => cw.has(w)).length;
-    if (hit > 0 && (!best || hit > best.score)) best = { t, score: hit };
+    const tw = [...new Set(words(t.title))];
+    if (!tw.length) continue;
+    const hits = tw.filter((w) => cw.has(w));
+    const strong = hits.filter((w) => !GENERIC.has(w)).length;
+    const ratio = hits.length / tw.length;
+    const distinctive = hits.some((w) => !GENERIC.has(w) && w.length >= 6);
+    if (!strong || (ratio < 0.5 && hits.length < 2 && !distinctive)) continue;
+    if (!best || strong > best.strong || (strong === best.strong && ratio > best.ratio)) best = { t, strong, ratio };
   }
   return best?.t ?? null;
 }
@@ -236,6 +250,9 @@ export async function sortText(text: string, ctx: Ctx): Promise<{ items: SortIte
       '\nOpen tasks (id: title):\n' + (ctx.openTasks.map((t) => `${t.id}: ${t.title}`).join('\n') || '(none)');
     const out = (await callGemini(ctx.settings, system, clean, schema)) as { items?: Record<string, unknown>[] } | null;
     if (out?.items) {
+      // Models sometimes invent a time or date that was never said. Only keep them when the words have a cue for one.
+      const timeCue = /\d|\b(noon|midday|midnight|morning|afternoon|evening|tonight|o'?clock)\b/i.test(clean);
+      const dateCue = /\d|\b(today|tonight|tomorrow|tmrw|tmr|week|weekend|month|(mon|tues?|wed(nes)?|thu(rs)?|fri|sat(ur)?|sun)(day)?)\b/i.test(clean);
       const ids = new Set(ctx.openTasks.map((t) => t.id));
       const items: SortItem[] = [];
       for (const raw of out.items) {
@@ -243,9 +260,14 @@ export async function sortText(text: string, ctx: Ctx): Promise<{ items: SortIte
         if (!['task', 'note', 'event', 'complete'].includes(type)) continue;
         const taskId = typeof raw.taskId === 'number' && ids.has(raw.taskId) ? raw.taskId : null;
         if (type === 'complete' && (taskId == null || !ctx.settings.flags.matchTasks)) continue;
-        const time = typeof raw.time === 'string' && /^\d{1,2}:\d{2}$/.test(raw.time) ? raw.time.padStart(5, '0') : null;
-        const endTime = typeof raw.endTime === 'string' && /^\d{1,2}:\d{2}$/.test(raw.endTime) ? raw.endTime.padStart(5, '0') : null;
-        const date = typeof raw.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.date) ? raw.date : null;
+        const time = timeCue && typeof raw.time === 'string' && /^\d{1,2}:\d{2}$/.test(raw.time) ? raw.time.padStart(5, '0') : null;
+        const endTime = time && typeof raw.endTime === 'string' && /^\d{1,2}:\d{2}$/.test(raw.endTime) ? raw.endTime.padStart(5, '0') : null;
+        const date = (dateCue || time) && typeof raw.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.date) ? raw.date : null;
+        // an "event" needs a time slot; without one it's a task
+        if (type === 'event' && !time) {
+          if (String(raw.title ?? '').trim()) items.push({ type: 'task', title: String(raw.title ?? '').trim(), tag: normalizeTag(typeof raw.tag === 'string' ? raw.tag : null), date, time: null, endTime: null, taskId: null });
+          continue;
+        }
         const title = String(raw.title ?? '').trim();
         if (!title) continue;
         items.push({

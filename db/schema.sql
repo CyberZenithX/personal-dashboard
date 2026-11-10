@@ -65,3 +65,11 @@ create table if not exists xp_log (
 );
 create unique index if not exists xp_log_ref_uq on xp_log (ref) where ref is not null;
 create index if not exists xp_log_day_idx on xp_log (day);
+
+-- Failed login attempts, for rate limiting the password form.
+create table if not exists login_attempts (
+  id bigserial primary key,
+  ip text not null,
+  at timestamptz not null default now()
+);
+create index if not exists login_attempts_ip_idx on login_attempts (ip, at);
