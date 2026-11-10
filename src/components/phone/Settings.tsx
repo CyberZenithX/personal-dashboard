@@ -1,7 +1,8 @@
 'use client';
-import { useRouter } from 'next/navigation';
+import { useNav } from '../motion';
 import { useState, type ReactNode } from 'react';
 import { Modal } from '../CaptureSheet';
+import { Presence } from '../motion';
 import { DataActions, NotifyRow, onReminderToggle, PromptPreview, ShortcutsEditor, TagGroup } from '../settingsParts';
 import { useApp } from '../store';
 import { C, HEAD, ICON, Svg, Toggle } from '../ui';
@@ -26,7 +27,7 @@ interface Row {
 
 export default function PhoneSettings() {
   const { state, setSettings, saveState } = useApp();
-  const router = useRouter();
+  const router = useNav();
   const s = state.settings;
   const level = state.progress.level;
   const [sheet, setSheet] = useState<string | null>(null);
@@ -156,13 +157,13 @@ export default function PhoneSettings() {
         <span style={{ textAlign: 'center', fontSize: 12, color: '#5A6273' }}>Daylog · free forever · your data, your Neon database</span>
       </div>
 
-      {sheet && body && (
+      <Presence show={!!(sheet && body)}>
         <Modal label={title} onClose={() => setSheet(null)}>
           <h2 style={{ margin: 0, fontFamily: HEAD, fontSize: 18 }}>{title}</h2>
           {body}
           <button type="button" onClick={() => setSheet(null)} style={{ padding: 14, borderRadius: 14, border: 'none', background: C.accent, color: 'var(--bg)', fontSize: 15, fontWeight: 700 }}>Done</button>
         </Modal>
-      )}
+      </Presence>
     </div>
   );
 }

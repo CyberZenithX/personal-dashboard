@@ -1,5 +1,5 @@
 'use client';
-import Link from 'next/link';
+import { Count, Link } from '@/components/motion';
 import type { CSSProperties, ReactNode } from 'react';
 import { useApp } from './store';
 import { C, HEAD, ICON, Svg } from './ui';
@@ -46,7 +46,7 @@ export function DesktopNav({
           const on = n.label === active;
           return (
             <Link
-              key={n.label} href={n.href} aria-current={on ? 'page' : undefined}
+              key={n.label} href={n.href} prefetch aria-current={on ? 'page' : undefined}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12, padding: '11px 12px', borderRadius: 10,
                 background: on ? '#1C2029' : 'transparent', color: on ? '#FFFFFF' : C.muted, textDecoration: 'none',
@@ -79,7 +79,7 @@ export function LevelCard({ long }: { long?: boolean }) {
         <div style={{ height: '100%', width: pct, background: C.accent, borderRadius: 99, transition: 'width .5s' }} />
       </div>
       <span style={{ fontSize: 12, color: C.muted }}>
-        {p.xp.toLocaleString()} / {p.nextXp.toLocaleString()} XP{long ? ` · ${Math.max(0, p.nextXp - p.xp).toLocaleString()} to Level ${Math.min(30, p.level + 1)}` : ''}
+        <Count value={p.xp} /> / {p.nextXp.toLocaleString()} XP{long ? ` · ${Math.max(0, p.nextXp - p.xp).toLocaleString()} to Level ${Math.min(30, p.level + 1)}` : ''}
       </span>
     </div>
   );
@@ -129,7 +129,7 @@ export function PhoneTabs({ active }: { active?: string }) {
         return mic ? (
           <button key={tb.label} type="button" onClick={openVoice} aria-label="Talk: log something by voice" style={style}>{inner}</button>
         ) : (
-          <Link key={tb.label} href={tb.href} aria-current={on ? 'page' : undefined} style={style}>{inner}</Link>
+          <Link key={tb.label} href={tb.href} prefetch aria-current={on ? 'page' : undefined} style={style}>{inner}</Link>
         );
       })}
     </nav>

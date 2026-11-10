@@ -1,11 +1,11 @@
 'use client';
-import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { rewardsAt } from '@/lib/levels';
 import { addDays, dow } from '@/lib/time';
-import type { Task } from '@/lib/types';
+import type { LevelUp, Task } from '@/lib/types';
 import { allTagColor } from '@/lib/view';
 import { Modal } from './CaptureSheet';
+import { Count, Presence, useNav } from './motion';
 import { useApp } from './store';
 import { C, HEAD, ICON, Pill, Svg, useDialogFocus } from './ui';
 
@@ -13,10 +13,10 @@ import { C, HEAD, ICON, Pill, Svg, useDialogFocus } from './ui';
 
 export function Toast() {
   const { toast, phone } = useApp();
-  if (!toast) return null;
   return (
+    <Presence show={!!toast}>
     <div
-      role="status"
+      role="status" data-anim="toast"
       style={{
         position: 'fixed', zIndex: 90, display: 'flex', alignItems: 'center', gap: phone ? 10 : 12,
         padding: phone ? '14px 16px' : '14px 18px', borderRadius: 14, background: C.accent, color: 'var(--bg)', fontWeight: 700,
@@ -27,6 +27,7 @@ export function Toast() {
       <Svg d={ICON.bolt} size={phone ? 18 : 20} sw={2.5} />
       {toast}
     </div>
+    </Presence>
   );
 }
 
@@ -35,8 +36,7 @@ export function Toast() {
 export function TaskMenu() {
   const { menuTaskId, openTaskMenu, allTasks } = useApp();
   const task = allTasks.find((t) => t.id === menuTaskId);
-  if (!task) return null;
-  return <TaskEditor key={task.id} task={task} onClose={() => openTaskMenu(null)} />;
+  return <Presence show={!!task}>{task && <TaskEditor key={task.id} task={task} onClose={() => openTaskMenu(null)} />}</Presence>;
 }
 
 type When = 'none' | 'today' | 'tomorrow' | 'pick';
@@ -155,7 +155,7 @@ function TaskEditor({ task, onClose }: { task: Task; onClose: () => void }) {
 
 export function Palette() {
   const { palette, setPalette, state, today, phone, allTasks, allNotes } = useApp();
-  const router = useRouter();
+  const router = useNav();
   const [q, setQ] = useState('');
   const [sel, setSel] = useState(0);
   const ref = useRef<HTMLInputElement>(null);
@@ -184,15 +184,16 @@ export function Palette() {
     });
     return out;
   }, [q, state, today, router, allTasks, allNotes]);
-  if (!palette) return null;
   const close = () => setPalette(false);
-  const pick = (i: number) => { results[i]?.go(); close(); };
+  const pick = (i: number) => { close(); results[i]?.go(); };
   return (
+    <Presence show={palette} ms={150}>
     <div
+      data-anim="backdrop"
       onMouseDown={(e) => e.target === e.currentTarget && close()}
       style={{ position: 'fixed', inset: 0, zIndex: 70, background: 'rgba(5,6,8,.7)', display: 'flex', justifyContent: 'center', alignItems: 'flex-start', padding: phone ? '12px 12px' : '12vh 16px' }}
     >
-      <div ref={box} role="dialog" aria-modal="true" aria-label="Search everything" style={{ width: 'min(560px, 100%)', borderRadius: 18, background: '#1C2029', border: '1px solid #3A404D', boxShadow: '0 16px 40px rgba(0,0,0,.45)', overflow: 'hidden' }}>
+      <div ref={box} role="dialog" aria-modal="true" aria-label="Search everything" data-anim="dialog" style={{ width: 'min(560px, 100%)', borderRadius: 18, background: '#1C2029', border: '1px solid #3A404D', boxShadow: '0 16px 40px rgba(0,0,0,.45)', overflow: 'hidden' }}>
         <label style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', borderBottom: '1px solid #2D3240' }}>
           <Svg d={ICON.search} size={16} color={C.dim} sw={2.2} />
           <span style={{ position: 'absolute', left: -9999 }}>Search everything</span>
@@ -224,13 +225,19 @@ export function Palette() {
         </div>
       </div>
     </div>
+    </Presence>
   );
 }
 
 /* ---------------------------------------------------------------- level up */
 
 export function LevelUpScreen() {
-  const { levelUp, dismissLevelUp, state, today, phone } = useApp();
+  const { levelUp } = useApp();
+  return <Presence show={!!levelUp} ms={200}>{levelUp && <LevelUpInner levelUp={levelUp} />}</Presence>;
+}
+
+function LevelUpInner({ levelUp }: { levelUp: LevelUp }) {
+  const { dismissLevelUp, state, today, phone } = useApp();
   const box = useRef<HTMLDivElement>(null);
   useDialogFocus(box, !!levelUp);
   useEffect(() => {
@@ -239,7 +246,6 @@ export function LevelUpScreen() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [levelUp, dismissLevelUp]);
-  if (!levelUp) return null;
   const p = state.progress;
   const day = p.days[today];
   const rewards = rewardsAt(levelUp.to);
@@ -254,13 +260,17 @@ export function LevelUpScreen() {
     ['left:calc(100% - 90px);top:210px', 8, 8, C.accent, 2, 45], ['left:50%;top:10px', 6, 10, '#FFB36B', 2, 10]
   ] as const;
   return (
-    <div ref={box} role="dialog" aria-modal="true" aria-label="You levelled up" style={{ position: 'fixed', inset: 0, zIndex: 100, background: phone ? C.bg : 'rgba(5,6,8,.8)', display: 'flex', justifyContent: 'center', alignItems: phone ? 'stretch' : 'center', overflowY: 'auto' }}>
-      <div style={{ width: phone ? '100%' : 420, minHeight: phone ? '100dvh' : undefined, background: C.bg, borderRadius: phone ? 0 : 28, border: phone ? 'none' : '1px solid #2D3240', padding: '28px 20px max(28px, env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 22, position: 'relative', overflow: 'hidden' }}>
+    <div ref={box} role="dialog" aria-modal="true" aria-label="You levelled up" data-anim="backdrop" style={{ position: 'fixed', inset: 0, zIndex: 100, background: phone ? C.bg : 'rgba(5,6,8,.8)', display: 'flex', justifyContent: 'center', alignItems: phone ? 'stretch' : 'center', overflowY: 'auto' }}>
+      <div data-anim="dialog" style={{ width: phone ? '100%' : 420, minHeight: phone ? '100dvh' : undefined, background: C.bg, borderRadius: phone ? 0 : 28, border: phone ? 'none' : '1px solid #2D3240', padding: '28px 20px max(28px, env(safe-area-inset-bottom))', display: 'flex', flexDirection: 'column', gap: 22, position: 'relative', overflow: 'hidden' }}>
         {state.settings.flags.confetti && (
           <div aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, top: 70, height: 300, pointerEvents: 'none' }}>
             {bits.map(([pos, w, h, bg, r, rot], i) => {
               const st: Record<string, string> = Object.fromEntries(pos.split(';').map((x) => x.split(':')));
-              return <span key={i} style={{ position: 'absolute', ...st, width: w, height: h, borderRadius: r, background: bg, transform: `rotate(${rot}deg)` }} />;
+              return (
+                <span key={i} style={{ position: 'absolute', ...st, transform: `rotate(${rot}deg)` }}>
+                  <span style={{ display: 'block', width: w, height: h, borderRadius: r, background: bg, animation: `confetti 1.6s ${0.15 + i * 0.12}s var(--ease-out) both` }} />
+                </span>
+              );
             })}
           </div>
         )}
@@ -274,7 +284,7 @@ export function LevelUpScreen() {
             New title: <strong style={{ color: '#FFFFFF' }}>{p.title}</strong>. You logged {p.thingsThisWeek} thing{p.thingsThisWeek === 1 ? '' : 's'} this week.
           </p>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
+        <div className="stagger" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
           {stat(p.streak, 'day streak', C.orange)}
           {stat(day?.score ?? 0, 'day score', C.accent)}
           {stat('+' + p.xpToday, 'XP today', C.blue)}
@@ -295,10 +305,10 @@ export function LevelUpScreen() {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: C.muted }}>
-            <span>Level {levelUp.to}</span><span>{p.xp.toLocaleString()} / {p.nextXp.toLocaleString()} XP</span>
+            <span>Level {levelUp.to}</span><span><Count value={p.xp} /> / {p.nextXp.toLocaleString()} XP</span>
           </div>
           <div style={{ height: 8, borderRadius: 99, background: '#262B36', overflow: 'hidden' }}>
-            <div style={{ height: '100%', width: Math.min(100, Math.round(((p.xp - p.levelXp) / Math.max(1, p.nextXp - p.levelXp)) * 100)) + '%', background: C.accent }} />
+            <div style={{ height: '100%', width: Math.min(100, Math.round(((p.xp - p.levelXp) / Math.max(1, p.nextXp - p.levelXp)) * 100)) + '%', background: C.accent, transformOrigin: 'left', animation: 'barGrow .9s .3s var(--ease-out) both' }} />
           </div>
         </div>
         <button autoFocus type="button" onClick={dismissLevelUp} style={{ marginTop: 'auto', padding: 16, borderRadius: 16, background: C.accent, color: 'var(--bg)', border: 'none', textAlign: 'center', fontWeight: 700, fontSize: 16 }}>

@@ -7,6 +7,7 @@ import { PhoneTabs } from './Nav';
 import DesktopVoice from './desktop/Voice';
 import PhoneVoice from './phone/Voice';
 import { LevelUpScreen, Palette, TaskMenu, Toast } from './Overlays';
+import { Presence, useRouteSettle } from './motion';
 import { useApp } from './store';
 import { C } from './ui';
 import { hhmmToMin, minutesOfDay } from '@/lib/time';
@@ -113,7 +114,7 @@ function VoiceOverlay({ phone, onClose }: { phone: boolean; onClose: () => void 
     return () => { document.body.style.overflow = prev; };
   }, []);
   return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 85, overflowY: 'auto', animation: 'voiceIn .18s ease-out' }}>
+    <div data-anim="dialog" style={{ position: 'fixed', inset: 0, zIndex: 85, overflowY: 'auto' }}>
       {phone ? <PhoneVoice onClose={onClose} overlay /> : <DesktopVoice onClose={onClose} overlay />}
     </div>
   );
@@ -125,6 +126,13 @@ export function Shell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   useShortcuts();
   useReminders();
+  useRouteSettle(pathname);
+  // CSS hooks for page transitions: desktop or phone, and whether the browser can do view transitions
+  useEffect(() => {
+    const r = document.documentElement;
+    if (app.phone !== null) r.dataset.form = app.phone ? 'phone' : 'desk';
+    r.classList.toggle('no-vt', !('startViewTransition' in document));
+  }, [app.phone]);
 
   const flag = PAGE_FLAG[pathname];
   const disabled = !!flag && !app.state.settings.pages[flag];
@@ -141,7 +149,9 @@ export function Shell({ children }: { children: ReactNode }) {
       <CaptureSheet />
       <TaskMenu />
       <Palette />
-      {app.voiceOpen && pathname !== '/voice' && <VoiceOverlay phone={app.phone} onClose={app.closeVoice} />}
+      <Presence show={app.voiceOpen && pathname !== '/voice'}>
+        <VoiceOverlay phone={app.phone} onClose={app.closeVoice} />
+      </Presence>
       <Toast />
       <LevelUpScreen />
     </div>

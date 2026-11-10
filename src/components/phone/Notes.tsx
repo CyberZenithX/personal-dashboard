@@ -1,6 +1,7 @@
 'use client';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Presence } from '../motion';
 import { NoteDetail } from '../NoteDetail';
 import { useApp } from '../store';
 import { C, HEAD, ICON, Svg, useDialogFocus } from '../ui';
@@ -96,9 +97,11 @@ export default function PhoneNotes() {
         <Svg d={ICON.pencil} size={22} sw={2.4} />
       </button>
 
-      {cur && <NoteSheet title={cur.title} onClose={() => setOpen(null)}>
-        <NoteDetail note={cur} compact onDeleted={() => setOpen(null)} />
-      </NoteSheet>}
+      <Presence show={!!cur} ms={220}>
+        {cur && <NoteSheet title={cur.title} onClose={() => setOpen(null)}>
+          <NoteDetail note={cur} compact onDeleted={() => setOpen(null)} />
+        </NoteSheet>}
+      </Presence>
     </div>
   );
 }
@@ -116,7 +119,7 @@ function NoteSheet({ title, onClose, children }: { title: string; onClose: () =>
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
   return (
-    <div ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} style={{ outline: 'none', position: 'fixed', inset: 0, zIndex: 50, background: C.bg, overflowY: 'auto', padding: '16px 20px max(32px, env(safe-area-inset-bottom))' }}>
+    <div ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} data-anim="push" style={{ outline: 'none', position: 'fixed', inset: 0, zIndex: 50, background: C.bg, overflowY: 'auto', padding: '16px 20px max(32px, env(safe-area-inset-bottom))' }}>
       <button type="button" onClick={onClose} aria-label="Back to notes" style={{ width: 44, height: 44, borderRadius: 12, border: 'none', background: C.surface, color: C.text, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
         <Svg d={ICON.back} sw={2.4} />
       </button>

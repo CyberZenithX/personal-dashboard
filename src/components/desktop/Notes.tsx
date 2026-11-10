@@ -101,7 +101,7 @@ export default function Notes() {
 
       <main style={{ flex: '999 1 480px', minWidth: 0, padding: '28px 48px 48px', display: 'flex', flexDirection: 'column', gap: 20 }}>
         {cur ? (
-          <NoteDetail note={cur} onDeleted={() => setSel(null)} />
+          <div key={cur.id} data-anim="fade-in" style={{ display: 'flex', flexDirection: 'column', gap: 20, minWidth: 0 }}><NoteDetail note={cur} onDeleted={() => setSel(null)} /></div>
         ) : (
           <div style={{ margin: 'auto', textAlign: 'center', color: C.dim, fontSize: 14 }}>Select a note, or press {s.keys[1]} to write a new one.</div>
         )}

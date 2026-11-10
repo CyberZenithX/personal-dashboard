@@ -56,12 +56,12 @@ export const ICON = {
 } as const;
 
 export function Svg({
-  d, size = 18, sw = 2, color = 'currentColor', fill = 'none', style
-}: { d: string; size?: number; sw?: number; color?: string; fill?: string; style?: CSSProperties }) {
+  d, size = 18, sw = 2, color = 'currentColor', fill = 'none', style, className
+}: { d: string; size?: number; sw?: number; color?: string; fill?: string; style?: CSSProperties; className?: string }) {
   return (
     <svg
       width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke={color} strokeWidth={sw}
-      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={style}
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={style} className={className}
     >
       <path d={d} />
     </svg>

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { parseQuick } from '@/lib/parse';
 import { addDays, DOW_SHORT, fmtTime, minToHhmm, shortDate, weekStart } from '@/lib/time';
 import type { EventKind } from '@/lib/types';
+import { Presence } from './motion';
 import { useApp, type CaptureReq } from './store';
 import { C, HEAD, Pill, Svg, ICON, useDialogFocus } from './ui';
 
@@ -24,6 +25,7 @@ export function Modal({ label, onClose, children }: { label: string; onClose: ()
   }, [onClose]);
   return (
     <div
+      data-anim="backdrop"
       onMouseDown={(e) => e.target === e.currentTarget && onClose()}
       style={{
         position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(5,6,8,.7)', display: 'flex', justifyContent: 'center',
@@ -31,13 +33,12 @@ export function Modal({ label, onClose, children }: { label: string; onClose: ()
       }}
     >
       <div
-        ref={box} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1}
+        ref={box} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1} data-anim="sheet"
         style={{
           outline: 'none',
           width: phone ? '100%' : 'min(480px, 100%)', maxHeight: '92dvh', overflowY: 'auto', background: C.surface,
           borderRadius: phone ? '24px 24px 0 0' : 24, border: '1px solid #2D3240',
-          padding: phone ? '12px 20px max(28px, env(safe-area-inset-bottom))' : 24, display: 'flex', flexDirection: 'column', gap: 16,
-          animation: 'sheetIn .22s ease-out'
+          padding: phone ? '12px 20px max(28px, env(safe-area-inset-bottom))' : 24, display: 'flex', flexDirection: 'column', gap: 16
         }}
       >
         {phone && <span style={{ alignSelf: 'center', width: 40, height: 5, borderRadius: 99, background: '#3A404D' }} />}
@@ -49,8 +50,7 @@ export function Modal({ label, onClose, children }: { label: string; onClose: ()
 
 export function CaptureSheet() {
   const { capture, closeCapture } = useApp();
-  if (!capture) return null;
-  return <Inner key={JSON.stringify(capture)} req={capture} onClose={closeCapture} />;
+  return <Presence show={!!capture}>{capture && <Inner key={JSON.stringify(capture)} req={capture} onClose={closeCapture} />}</Presence>;
 }
 
 function Inner({ req, onClose }: { req: CaptureReq; onClose: () => void }) {

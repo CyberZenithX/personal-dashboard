@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { DesktopNav } from '../Nav';
+import { Count, Presence } from '../motion';
 import { useApp } from '../store';
 import { C, HEAD, ICON, Svg } from '../ui';
 import { LADDER, levelPct, titleFor } from '@/lib/levels';
@@ -87,7 +88,7 @@ export default function Progress() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
               <span style={{ fontFamily: HEAD, fontSize: 24, fontWeight: 700 }}>{p.title}</span>
               <span style={{ fontSize: 14, color: C.muted }}>
-                {p.xp.toLocaleString()} / {p.nextXp.toLocaleString()} XP{p.nextTitle ? <> · next title <strong style={{ color: '#fff' }}>{p.nextTitle}</strong></> : null}
+                <Count value={p.xp} /> / {p.nextXp.toLocaleString()} XP{p.nextTitle ? <> · next title <strong style={{ color: '#fff' }}>{p.nextTitle}</strong></> : null}
               </span>
             </div>
             <div style={{ height: 12, borderRadius: 99, background: '#262B36', overflow: 'hidden' }}><div style={{ height: '100%', width: barPct + '%', background: C.accent, borderRadius: 99, transition: 'width .5s' }} /></div>
@@ -201,10 +202,10 @@ export default function Progress() {
         </div>
       </main>
 
-      {open && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(5,6,8,.72)', display: 'flex', justifyContent: 'flex-end' }}>
+      <Presence show={open} ms={200}>
+        <div data-anim="backdrop" style={{ position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(5,6,8,.72)', display: 'flex', justifyContent: 'flex-end' }}>
           <button type="button" onClick={() => setOpen(false)} aria-label="Close title path" style={{ flex: 1, border: 'none', background: 'transparent', cursor: 'default' }} />
-          <aside role="dialog" aria-modal="true" aria-label="Your title path" style={{ width: 460, maxWidth: '100%', background: '#14171D', borderLeft: `1px solid ${C.border2}`, padding: '28px 24px', display: 'flex', flexDirection: 'column', gap: 18, overflowY: 'auto' }}>
+          <aside role="dialog" aria-modal="true" aria-label="Your title path" data-anim="drawer" style={{ width: 460, maxWidth: '100%', background: '#14171D', borderLeft: `1px solid ${C.border2}`, padding: '28px 24px', display: 'flex', flexDirection: 'column', gap: 18, overflowY: 'auto' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 <span style={{ fontSize: 12, fontWeight: 700, color: C.accent, letterSpacing: '.06em' }}>YOUR TITLE PATH</span>
@@ -237,7 +238,7 @@ export default function Progress() {
             </div>
           </aside>
         </div>
-      )}
+      </Presence>
     </div>
   );
 }

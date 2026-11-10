@@ -1,6 +1,7 @@
 'use client';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { AnimatedList } from '../motion';
 import { useApp } from '../store';
 import { C, HEAD, ICON, Svg } from '../ui';
 import { PRIO_COLOR, groupTasks, type TaskView } from '../desktop/Tasks';
@@ -126,12 +127,13 @@ export default function PhoneTasks() {
         {groups.filter((g) => g.items.length).map((grp) => (
           <section key={grp.label} aria-label={grp.label} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             <h2 style={{ margin: 0, padding: '4px 4px 2px', fontSize: 12, fontWeight: 700, color: GROUP_COLOR[grp.label] ?? C.muted, letterSpacing: '.06em', textTransform: 'uppercase' }}>{grp.label} · {grp.items.length}</h2>
+            <AnimatedList>
             {grp.items.map((t) => (
               <SwipeRow key={t.id} task={t} highlight={flashId === t.id}>
                 <div style={{ display: 'flex', alignItems: 'center', borderRadius: 12, background: t.done ? C.accentRow2 : C.surface, transition: 'background .25s' }}>
-                <button type="button" onClick={() => toggleTask(t.id)} aria-pressed={t.done} aria-label={`${t.done ? 'Mark not done' : 'Complete'}: ${t.title}`} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, background: 'transparent', border: 'none', color: C.text, textAlign: 'left', minHeight: 56 }}>
+                <button type="button" data-row onClick={() => toggleTask(t.id)} aria-pressed={t.done} aria-label={`${t.done ? 'Mark not done' : 'Complete'}: ${t.title}`} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, background: 'transparent', border: 'none', color: C.text, textAlign: 'left', minHeight: 56 }}>
                   <span style={{ width: 24, height: 24, borderRadius: 99, border: `2px solid ${t.done ? C.accent : '#4A5160'}`, background: t.done ? C.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
-                    {t.done && <Svg d={ICON.check} size={13} sw={3.5} color="var(--bg)" />}
+                    {t.done && <Svg className="tick" d={ICON.check} size={13} sw={3.5} color="var(--bg)" />}
                   </span>
                   <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 3 }}>
                     <span style={{ fontSize: 14, textDecoration: t.done ? 'line-through' : 'none', color: t.done ? C.dim : C.text }}>{t.title}</span>
@@ -147,6 +149,7 @@ export default function PhoneTasks() {
                 </div>
               </SwipeRow>
             ))}
+            </AnimatedList>
           </section>
         ))}
         {view === 'Done' && moreTasks && (

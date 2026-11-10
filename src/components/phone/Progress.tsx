@@ -1,5 +1,5 @@
 'use client';
-import Link from 'next/link';
+import { Link } from '@/components/motion';
 import { useApp } from '../store';
 import { C, HEAD, ICON, Svg } from '../ui';
 import { heatLevel, paceText, resetsIn } from '../desktop/Progress';

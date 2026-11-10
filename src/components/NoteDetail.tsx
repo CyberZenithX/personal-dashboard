@@ -1,6 +1,6 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useNav } from './motion';
 import type { Note, NoteLink } from '@/lib/types';
 import { allTagColor, kindLabel, noteWhen } from '@/lib/view';
 import { useApp } from './store';
@@ -10,7 +10,7 @@ const typeColor = { Task: '#7FB2FF', Event: '#D59CFF' } as const;
 
 export function NoteDetail({ note, onDeleted, compact }: { note: Note; onDeleted?: () => void; compact?: boolean }) {
   const { state, today, tz, act, openCapture, flash, allTasks } = useApp();
-  const router = useRouter();
+  const router = useNav();
   const s = state.settings;
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState('');
@@ -142,7 +142,7 @@ export function NoteDetail({ note, onDeleted, compact }: { note: Note; onDeleted
       </div>
 
       {tagOpen && !editing && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 14, borderRadius: 14, background: C.surface, border: `1px solid ${C.border2}`, maxWidth: 680 }}>
+        <div data-anim="pop" style={{ display: 'flex', flexDirection: 'column', gap: 8, padding: 14, borderRadius: 14, background: C.surface, border: `1px solid ${C.border2}`, maxWidth: 680 }}>
           <span style={{ fontSize: 12, color: C.dim }}>Change tag</span>
           {tagPills(note.tag, setTagNow, true)}
         </div>
@@ -195,7 +195,7 @@ export function NoteDetail({ note, onDeleted, compact }: { note: Note; onDeleted
           </button>
         </div>
         {picker && (
-          <div role="listbox" aria-label="Link a task or event" style={{ width: 360, maxWidth: '100%', padding: 8, borderRadius: 14, background: '#1C2029', border: '1px solid #3A404D', boxShadow: '0 16px 40px rgba(0,0,0,.45)', display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 280, overflowY: 'auto' }}>
+          <div role="listbox" aria-label="Link a task or event" data-anim="pop" style={{ width: 360, maxWidth: '100%', padding: 8, borderRadius: 14, background: '#1C2029', border: '1px solid #3A404D', boxShadow: '0 16px 40px rgba(0,0,0,.45)', display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 280, overflowY: 'auto' }}>
             <span style={{ padding: '6px 10px 8px', fontSize: 11, color: C.dim, letterSpacing: '.06em' }}>LINK A TASK OR EVENT</span>
             {options.map((o) => (
               <button key={o.type + o.id} type="button" role="option" aria-selected="false" onClick={async () => { await act('PATCH', `/api/notes/${note.id}`, { links: [...note.links, o] }); setPicker(false); }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: 10, borderRadius: 9, border: 'none', background: 'transparent', color: C.text, fontSize: 13, textAlign: 'left', minHeight: 40 }}>

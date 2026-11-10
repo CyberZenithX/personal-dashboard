@@ -1,5 +1,5 @@
 'use client';
-import Link from 'next/link';
+import { AnimatedList, Count, Link } from '@/components/motion';
 import { useApp } from '../store';
 import { C, HEAD, ICON, Svg } from '../ui';
 import { scoreMessage } from '../desktop/Today';
@@ -42,7 +42,7 @@ export default function PhoneToday() {
           </div>
           <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
             <span style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '7px 10px', borderRadius: 99, background: '#2A1D12', color: C.accent2, fontSize: 13, fontWeight: 700 }}>
-              <Svg d={ICON.flame} size={14} sw={2.2} />{p.streak}
+              <Svg d={ICON.flame} size={14} sw={2.2} /><Count value={p.streak} />
             </span>
             <span style={{ display: 'flex', alignItems: 'center', padding: '7px 10px', borderRadius: 99, background: C.accentDim, color: C.accent, fontSize: 13, fontWeight: 700 }}>Lv {p.level}</span>
             <Link href="/settings" aria-label="Settings" style={{ width: 44, height: 44, borderRadius: 99, background: C.surface, color: '#C3C9D4', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -55,15 +55,15 @@ export default function PhoneToday() {
           <div style={{ position: 'relative', width: 84, height: 84, flex: 'none' }}>
             <svg width="84" height="84" viewBox="0 0 84 84" role="img" aria-label={`Day score ${day.score}`}>
               <circle cx="42" cy="42" r="34" fill="none" stroke="#262B36" strokeWidth="9" />
-              <circle cx="42" cy="42" r="34" fill="none" stroke="var(--accent)" strokeWidth="9" strokeLinecap="round" strokeDasharray={`${((ring * day.score) / 100).toFixed(1)} ${ring}`} transform="rotate(-90 42 42)" style={{ transition: 'stroke-dasharray .6s' }} />
+              <circle cx="42" cy="42" r="34" fill="none" stroke="var(--accent)" strokeWidth="9" strokeLinecap="round" strokeDasharray={`${((ring * day.score) / 100).toFixed(1)} ${ring}`} transform="rotate(-90 42 42)" className="ring-in" style={{ transition: 'stroke-dasharray .6s var(--ease-out)' }} />
             </svg>
-            <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: HEAD, fontSize: 24, fontWeight: 700 }}>{day.score}</span>
+            <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: HEAD, fontSize: 24, fontWeight: 700 }}><Count value={day.score} /></span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 0 }}>
             <span style={{ fontWeight: 600, fontSize: 15 }}>Day score</span>
             <span style={{ fontSize: 12, color: C.muted }}>{scoreMessage(day.score, day.checkins)}</span>
             <div style={{ height: 6, borderRadius: 99, background: '#262B36', overflow: 'hidden' }}><div style={{ height: '100%', width: levelPct(p) + '%', background: C.accent, transition: 'width .5s' }} /></div>
-            <span style={{ fontSize: 12, color: C.muted }}>{p.xp.toLocaleString()} / {p.nextXp.toLocaleString()} XP to Lv {Math.min(30, p.level + 1)}</span>
+            <span style={{ fontSize: 12, color: C.muted }}><Count value={p.xp} /> / {p.nextXp.toLocaleString()} XP to Lv {Math.min(30, p.level + 1)}</span>
             <span style={{ fontSize: 12, color: day.checkins >= s.goal ? C.accent : C.accent2 }}>Check-in {Math.min(day.checkins, s.goal)} of {s.goal} today</span>
           </div>
         </div>
@@ -89,11 +89,12 @@ export default function PhoneToday() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: '#C3C9D4' }}>Tasks · {doneCount}/{tasks.length}</span>
           {!tasks.length && <span style={{ fontSize: 13, color: C.dim, padding: '6px 4px' }}>Nothing due today. Tap Task above to add one.</span>}
+          <AnimatedList>
           {tasks.map((t) => (
             <div key={t.id} style={{ display: 'flex', alignItems: 'center', borderRadius: 12, background: t.done ? C.accentRow : C.surface, transition: 'background .25s' }}>
-            <button type="button" onClick={() => toggleTask(t.id)} aria-pressed={t.done} aria-label={`${t.done ? 'Mark not done' : 'Complete'}: ${t.title}`} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, background: 'transparent', border: 'none', color: C.text, textAlign: 'left', minHeight: 52 }}>
+            <button type="button" data-row onClick={() => toggleTask(t.id)} aria-pressed={t.done} aria-label={`${t.done ? 'Mark not done' : 'Complete'}: ${t.title}`} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, background: 'transparent', border: 'none', color: C.text, textAlign: 'left', minHeight: 52 }}>
               <span style={{ width: 24, height: 24, borderRadius: 99, border: `2px solid ${t.done ? C.accent : '#4A5160'}`, background: t.done ? C.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', transition: 'all .2s' }}>
-                {t.done && <Svg d={ICON.check} size={13} sw={3.5} color="var(--bg)" />}
+                {t.done && <Svg className="tick" d={ICON.check} size={13} sw={3.5} color="var(--bg)" />}
               </span>
               <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <span style={{ fontSize: 14, textDecoration: t.done ? 'line-through' : 'none', color: t.done ? C.dim : C.text }}>{t.title}</span>
@@ -106,6 +107,7 @@ export default function PhoneToday() {
             </button>
             </div>
           ))}
+          </AnimatedList>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>

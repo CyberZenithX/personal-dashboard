@@ -2,6 +2,7 @@
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { DesktopNav, LevelCard } from '../Nav';
+import { AnimatedList } from '../motion';
 import { useApp } from '../store';
 import { C, HEAD, ICON, Svg, visuallyHidden } from '../ui';
 import { parseQuick } from '@/lib/parse';
@@ -158,17 +159,18 @@ export default function Tasks() {
                 <h2 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: GROUP_COLOR[grp.label], letterSpacing: '.05em', textTransform: 'uppercase' }}>{grp.label}</h2>
                 <span style={{ fontSize: 12, color: C.dim }}>{grp.items.length}</span>
               </div>
+              <AnimatedList>
               {grp.items.map((t) => {
                 const sel = selectedTask === t.id;
                 return (
                   <div
                     key={t.id} tabIndex={0} onFocus={() => setSelectedTask(t.id)} onClick={() => setSelectedTask(t.id)}
-                    data-task-id={t.id} role="group" aria-label={t.title} aria-current={sel ? 'true' : undefined}
+                    data-task-id={t.id} data-row role="group" aria-label={t.title} aria-current={sel ? 'true' : undefined}
                     style={{ outline: sel ? `2px solid ${C.accentLine}` : undefined, outlineOffset: 1, display: 'flex', alignItems: 'center', gap: 14, padding: 'var(--row-pad) 14px', borderRadius: 12, background: t.done ? C.accentRow2 : C.surface, border: `1px solid ${sel ? '#5A6273' : '#22262F'}`, transition: 'background .25s' }}
                   >
                     <button type="button" onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }} aria-pressed={t.done} aria-label={`Complete ${t.title}`} style={{ width: 44, height: 44, margin: '-11px -8px -11px -11px', border: 'none', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none' }}>
                       <span style={{ width: 22, height: 22, borderRadius: 7, border: `2px solid ${t.done ? C.accent : '#4A5160'}`, background: t.done ? C.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', transition: 'all .2s' }}>
-                        {t.done && <Svg d={ICON.check} size={13} sw={3.5} color="var(--bg)" />}
+                        {t.done && <Svg className="tick" d={ICON.check} size={13} sw={3.5} color="var(--bg)" />}
                       </span>
                     </button>
                     <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 4 }}>
@@ -187,6 +189,7 @@ export default function Tasks() {
                   </div>
                 );
               })}
+              </AnimatedList>
             </section>
           ))}
           {view === 'Done' && moreTasks && (

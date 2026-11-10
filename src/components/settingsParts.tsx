@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { Modal } from './CaptureSheet';
+import { Presence } from './motion';
 import { keyState, comboFromEvent } from './keys';
 import { useApp } from './store';
 import { C, HEAD, ICON, MONO, Svg, Toggle } from './ui';
@@ -273,7 +274,7 @@ export function DataActions(_props: { phone?: boolean }) {
         </span>
         <button type="button" onClick={() => setConfirm(true)} style={{ padding: '10px 16px', borderRadius: 10, border: '1px solid #FF7A6B', background: 'transparent', color: '#FF9E92', fontSize: 14, fontWeight: 600, minHeight: 44 }}>Reset…</button>
       </div>
-      {confirm && (
+      <Presence show={confirm}>
         <Modal label="Reset progress" onClose={() => setConfirm(false)}>
           <h2 style={{ margin: 0, fontFamily: HEAD, fontSize: 20 }}>Reset all progress?</h2>
           <p style={{ margin: 0, fontSize: 14, color: C.muted, lineHeight: 1.5 }}>XP, level, streaks and quest history go back to zero. Your tasks, notes and events stay exactly as they are. This can’t be undone.</p>
@@ -282,7 +283,7 @@ export function DataActions(_props: { phone?: boolean }) {
             <button type="button" onClick={async () => { await act('POST', '/api/progress/reset'); setConfirm(false); flash('Progress reset'); }} style={{ flex: 1, padding: 14, borderRadius: 14, border: 'none', background: '#FF7A6B', color: '#1E1412', fontSize: 15, fontWeight: 700 }}>Reset progress</button>
           </div>
         </Modal>
-      )}
+      </Presence>
     </>
   );
 }

@@ -62,6 +62,97 @@ html:hover, *:hover { scrollbar-color: #5A6273 transparent; }
 *:hover > .row-actions, *:focus-within > .row-actions, .row-actions:focus-visible { opacity: 1; }
 @media (hover: none) { .row-actions { opacity: 1; } }
 
+/* ------------------------------------------------------------------ motion */
+:root { --ease-out: cubic-bezier(.22, 1, .36, 1); --ease: cubic-bezier(.4, 0, .2, 1); }
+
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes pageIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes pageOut { from { opacity: 1; } to { opacity: 0; } }
+@keyframes slideInFromRight { from { transform: translateX(32%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes slideInFromLeft { from { transform: translateX(-32%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes slideOutToLeft { from { transform: none; opacity: 1; } to { transform: translateX(-14%); opacity: 0; } }
+@keyframes slideOutToRight { from { transform: none; opacity: 1; } to { transform: translateX(14%); opacity: 0; } }
+@keyframes dialogIn { from { opacity: 0; transform: translateY(10px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes dialogOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(6px) scale(.98); } }
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: none; } }
+@keyframes sheetDown { from { transform: none; } to { transform: translateY(100%); } }
+@keyframes popIn { from { opacity: 0; transform: translateY(-4px) scale(.97); } to { opacity: 1; transform: none; } }
+@keyframes toastOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(8px) scale(.98); } }
+@keyframes rowIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes tick { from { stroke-dashoffset: 22; } to { stroke-dashoffset: 0; } }
+@keyframes checkPop { 0% { transform: scale(.8); } 60% { transform: scale(1.12); } 100% { transform: scale(1); } }
+@keyframes ringIn { from { stroke-dasharray: 0 999; } }
+@keyframes confetti { 0% { transform: translateY(-40px) rotate(0deg); opacity: 0; } 15% { opacity: 1; } 100% { transform: translateY(120px) rotate(220deg); opacity: 0; } }
+@keyframes barGrow { from { transform: scaleX(0); } }
+@keyframes pushIn { from { transform: translateX(100%); } to { transform: none; } }
+@keyframes pushOut { from { transform: none; } to { transform: translateX(100%); } }
+@keyframes drawerIn { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes drawerOut { from { transform: none; opacity: 1; } to { transform: translateX(40px); opacity: 0; } }
+@keyframes stagger { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* Page changes (browsers with view transitions). Desktop: the sidebar stays put, the page crossfades and rises. */
+html[data-form='desk'] main { view-transition-name: page; }
+html[data-form='desk'] nav[aria-label='Main'] { view-transition-name: sidebar; }
+::view-transition-group(sidebar), ::view-transition-old(sidebar), ::view-transition-new(sidebar) { animation: none; }
+::view-transition-old(page) { animation: pageOut .12s var(--ease) both; }
+::view-transition-new(page) { animation: pageIn .26s var(--ease-out) both; }
+::view-transition-group(page) { animation-duration: .26s; }
+html[data-form='desk']::view-transition-old(root), html[data-form='desk']::view-transition-new(root) { animation-duration: .2s; }
+
+/* Phone: pages slide like an app, the tab bar stays still. */
+html[data-form='phone'] nav[aria-label='Tabs'] { view-transition-name: tabs; }
+::view-transition-group(tabs), ::view-transition-old(tabs), ::view-transition-new(tabs) { animation: none; }
+html[data-form='phone']::view-transition-old(root) { animation: slideOutToLeft .26s var(--ease) both; }
+html[data-form='phone']::view-transition-new(root) { animation: slideInFromRight .3s var(--ease-out) both; }
+html[data-form='phone'][data-nav='back']::view-transition-old(root) { animation-name: slideOutToRight; }
+html[data-form='phone'][data-nav='back']::view-transition-new(root) { animation-name: slideInFromLeft; }
+
+/* No view transitions: the desktop page still fades in. */
+html.no-vt[data-form='desk'] main { animation: pageIn .26s var(--ease-out); }
+
+/* Sheets, dialogs, menus: in and out */
+[data-anim='backdrop'] { animation: fadeIn .18s var(--ease) both; }
+[data-anim='dialog'] { animation: dialogIn .22s var(--ease-out) both; }
+.phone [data-anim='sheet'] { animation: sheetUp .3s var(--ease-out) both; }
+[data-anim='sheet'] { animation: dialogIn .22s var(--ease-out) both; }
+[data-anim='pop'] { animation: popIn .16s var(--ease-out) both; transform-origin: top; }
+.leaving [data-anim='backdrop'] { animation: fadeOut .18s var(--ease) both !important; }
+.leaving [data-anim='dialog'], .leaving [data-anim='sheet'] { animation: dialogOut .16s var(--ease) both !important; }
+.phone .leaving [data-anim='sheet'] { animation: sheetDown .2s var(--ease) both !important; }
+.leaving [data-anim='toast'] { animation: toastOut .18s var(--ease) both !important; }
+[data-anim='push'] { animation: pushIn .3s var(--ease-out) both; }
+.leaving [data-anim='push'] { animation: pushOut .22s var(--ease) both !important; }
+[data-anim='drawer'] { animation: drawerIn .26s var(--ease-out) both; }
+.leaving [data-anim='drawer'] { animation: drawerOut .18s var(--ease) both !important; }
+[data-anim='fade-in'] { animation: fadeIn .2s var(--ease) both; }
+.leaving [data-anim='fade'] { animation: fadeOut .16s var(--ease) both !important; }
+
+/* Task rows */
+.row-in { animation: rowIn .24s var(--ease-out) both; }
+.tick path { stroke-dasharray: 22; animation: tick .28s var(--ease-out) both; }
+.tick { animation: checkPop .3s var(--ease-out); }
+.ring-in { animation: ringIn .8s var(--ease-out) both; }
+.stagger > * { animation: stagger .35s var(--ease-out) both; }
+.stagger > :nth-child(2) { animation-delay: .05s; } .stagger > :nth-child(3) { animation-delay: .1s; }
+.stagger > :nth-child(4) { animation-delay: .15s; } .stagger > :nth-child(5) { animation-delay: .2s; }
+.stagger > :nth-child(6) { animation-delay: .25s; } .stagger > :nth-child(7) { animation-delay: .3s; }
+
+/* Hover & press */
+button, a, [role='button'] {
+  transition-property: transform, filter, background-color, border-color, color, opacity, box-shadow;
+  transition-duration: .15s;
+  transition-timing-function: var(--ease);
+}
+@media (hover: hover) {
+  button:not(:disabled):hover, a[href]:hover { filter: brightness(1.12); }
+  nav[aria-label='Main'] a:not([aria-current]):hover { background-color: #181B22 !important; color: #E9ECF2 !important; filter: none; }
+  [data-card]:hover { transform: translateY(-2px); }
+}
+button:not(:disabled):active, a[href]:active { transform: scale(.96); transition-duration: .08s; }
+button[data-row]:not(:disabled):active, [data-row] button:not(:disabled):active, [data-row]:active { transform: scale(.99); }
+nav a:active, nav button:active { transform: scale(.94); }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
