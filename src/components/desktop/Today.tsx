@@ -40,7 +40,7 @@ export function useTimeline(): TimelineEntry[] {
 }
 
 export default function Today() {
-  const { state, today, tz, toggleTask, openCapture, openVoice } = useApp();
+  const { state, today, tz, toggleTask, openCapture, openVoice, openTaskMenu } = useApp();
   const [tag, setTag] = useState('All');
   const s = state.settings;
   const p = state.progress;
@@ -170,9 +170,10 @@ export default function Today() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {!sorted.length && <span style={{ fontSize: 13, color: C.dim, padding: '8px 4px' }}>Nothing due today. Press {keys[0]} to add a task.</span>}
                 {sorted.map((t) => (
+                  <div key={t.id} style={{ display: 'flex', alignItems: 'center', borderRadius: 12, background: t.done ? C.accentRow : C.surface2, transition: 'background .25s' }}>
                   <button
-                    key={t.id} type="button" onClick={() => toggleTask(t.id)} aria-pressed={t.done}
-                    style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 12, borderRadius: 12, background: t.done ? C.accentRow : C.surface2, border: '1px solid transparent', color: C.text, textAlign: 'left', minHeight: 52, transition: 'background .25s' }}
+                    type="button" onClick={() => toggleTask(t.id)} aria-pressed={t.done} aria-label={`${t.done ? 'Mark not done' : 'Complete'}: ${t.title}`}
+                    style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 14, padding: 12, borderRadius: 12, background: 'transparent', border: '1px solid transparent', color: C.text, textAlign: 'left', minHeight: 52 }}
                   >
                     <span style={{ width: 22, height: 22, borderRadius: 7, border: `2px solid ${t.done ? C.accent : '#4A5160'}`, background: t.done ? C.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', transition: 'all .2s' }}>
                       {t.done && <Svg d={ICON.check} size={14} sw={3.5} color="var(--bg)" />}
@@ -183,6 +184,10 @@ export default function Today() {
                     </span>
                     <span style={{ fontSize: 12, fontWeight: 600, color: t.done ? C.accent : C.dim }}>+{t.xp} XP</span>
                   </button>
+                  <button type="button" className="row-actions" aria-label={`Edit, reschedule or delete: ${t.title}`} onClick={() => openTaskMenu(t.id)} style={{ width: 36, height: 36, marginRight: 8, flex: 'none', borderRadius: 8, border: 'none', background: 'transparent', color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Svg d={ICON.dots} size={18} sw={3} />
+                  </button>
+                  </div>
                 ))}
               </div>
             </section>

@@ -106,7 +106,7 @@ export default function PhoneSettings() {
 
   return (
     <div style={{ background: C.bg, color: C.text, minHeight: '100dvh' }}>
-      <div style={{ padding: 'max(20px, env(safe-area-inset-top)) 20px 48px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <div style={{ padding: 'max(20px, env(safe-area-inset-top)) 20px 130px', display: 'flex', flexDirection: 'column', gap: 18 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button type="button" onClick={() => router.back()} aria-label="Back" style={{ width: 44, height: 44, borderRadius: 12, border: 'none', background: C.surface, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.text }}>
             <Svg d={ICON.back} sw={2.4} />

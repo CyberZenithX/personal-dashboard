@@ -8,7 +8,7 @@ import { eventsOn } from '@/lib/view';
 import { levelPct } from '@/lib/levels';
 
 export default function PhoneToday() {
-  const { state, today, tz, toggleTask, openCapture, openVoice } = useApp();
+  const { state, today, tz, toggleTask, openCapture, openTaskMenu } = useApp();
   const s = state.settings;
   const p = state.progress;
   const day = p.days[today];
@@ -26,9 +26,9 @@ export default function PhoneToday() {
     ...state.tasks.filter((t) => t.dueDate === today && t.dueTime && !t.done).map((t) => ({ title: t.title, min: hhmmToMin(t.dueTime) ?? 0 }))
   ].filter((u) => u.min >= nowMin - 5).sort((a, b) => a.min - b.min)[0];
 
-  const actBtn = (label: string, color: string, icon: string, onClick: () => void) => (
-    <button type="button" onClick={onClick} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '8px 0', border: 'none', background: 'transparent', color, fontSize: 11, fontWeight: 600, minHeight: 52 }}>
-      <Svg d={icon} size={22} sw={2.2} />{label}
+  const actBtn = (label: string, color: string, bg: string, icon: string, onClick: () => void) => (
+    <button type="button" onClick={onClick} aria-label={`New ${label.toLowerCase()}`} style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 8px', borderRadius: 14, border: `1px solid ${C.border}`, background: C.surface, color: C.text, fontSize: 14, fontWeight: 600, minHeight: 52 }}>
+      <span style={{ width: 30, height: 30, borderRadius: 9, background: bg, color, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Svg d={icon} size={17} sw={2.3} /></span>{label}
     </button>
   );
 
@@ -68,6 +68,12 @@ export default function PhoneToday() {
           </div>
         </div>
 
+        <div role="group" aria-label="Quick add" style={{ display: 'flex', gap: 8 }}>
+          {actBtn('Task', C.blue, '#1F2A3D', ICON.tasks, () => openCapture({ type: 'task' }))}
+          {actBtn('Note', C.amber, '#2E2614', ICON.pencil, () => openCapture({ type: 'note' }))}
+          {actBtn('Event', C.purple, '#2A1C33', ICON.calendar, () => openCapture({ type: 'event' }))}
+        </div>
+
         {upcoming && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -82,18 +88,23 @@ export default function PhoneToday() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: '#C3C9D4' }}>Tasks · {doneCount}/{tasks.length}</span>
-          {!tasks.length && <span style={{ fontSize: 13, color: C.dim, padding: '6px 4px' }}>Nothing due today. Tap Task below to add one.</span>}
+          {!tasks.length && <span style={{ fontSize: 13, color: C.dim, padding: '6px 4px' }}>Nothing due today. Tap Task above to add one.</span>}
           {tasks.map((t) => (
-            <button key={t.id} type="button" onClick={() => toggleTask(t.id)} aria-pressed={t.done} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, background: t.done ? C.accentRow : C.surface, border: 'none', color: C.text, textAlign: 'left', minHeight: 52, transition: 'background .25s' }}>
+            <div key={t.id} style={{ display: 'flex', alignItems: 'center', borderRadius: 12, background: t.done ? C.accentRow : C.surface, transition: 'background .25s' }}>
+            <button type="button" onClick={() => toggleTask(t.id)} aria-pressed={t.done} aria-label={`${t.done ? 'Mark not done' : 'Complete'}: ${t.title}`} style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: 12, padding: 12, borderRadius: 12, background: 'transparent', border: 'none', color: C.text, textAlign: 'left', minHeight: 52 }}>
               <span style={{ width: 24, height: 24, borderRadius: 99, border: `2px solid ${t.done ? C.accent : '#4A5160'}`, background: t.done ? C.accent : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', transition: 'all .2s' }}>
                 {t.done && <Svg d={ICON.check} size={13} sw={3.5} color="var(--bg)" />}
               </span>
               <span style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 2 }}>
                 <span style={{ fontSize: 14, textDecoration: t.done ? 'line-through' : 'none', color: t.done ? C.dim : C.text }}>{t.title}</span>
-                {t.dueTime && !t.done && <span style={{ fontSize: 12, color: C.dim }}>{fmtTime(t.dueTime, s.time)}</span>}
+                {!t.done && (t.dueDate && t.dueDate < today ? <span style={{ fontSize: 12, color: '#FF9E7A' }}>Overdue{t.dueTime ? ` · ${fmtTime(t.dueTime, s.time)}` : ''}</span> : t.dueTime ? <span style={{ fontSize: 12, color: C.dim }}>{fmtTime(t.dueTime, s.time)}</span> : null)}
               </span>
               <span style={{ fontSize: 12, fontWeight: 600, color: t.done ? C.accent : C.dim }}>+{t.xp}</span>
             </button>
+            <button type="button" aria-label={`Edit, reschedule or delete: ${t.title}`} onClick={() => openTaskMenu(t.id)} style={{ width: 44, height: 44, marginRight: 4, flex: 'none', borderRadius: 10, border: 'none', background: 'transparent', color: C.muted, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Svg d={ICON.dots} size={18} sw={3} />
+            </button>
+            </div>
           ))}
         </div>
 
@@ -106,17 +117,6 @@ export default function PhoneToday() {
         </div>
       </div>
 
-      <div style={{ position: 'fixed', left: 0, right: 0, bottom: 0, padding: '14px 16px max(22px, env(safe-area-inset-bottom))', background: C.side, borderTop: '1px solid #1F232C', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, zIndex: 20 }}>
-        {actBtn('Task', C.blue, ICON.tasks, () => openCapture({ type: 'task' }))}
-        {actBtn('Note', C.amber, ICON.pencil, () => openCapture({ type: 'note' }))}
-        <button type="button" onClick={openVoice} aria-label="Talk: log something by voice" style={{ width: 64, height: 64, marginTop: -30, borderRadius: 99, border: 'none', background: C.accent, color: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', flex: 'none', boxShadow: `0 8px 28px ${C.glow2}` }}>
-          <Svg d={ICON.mic} size={28} sw={2.2} />
-        </button>
-        {actBtn('Event', C.purple, ICON.calendar, () => openCapture({ type: 'event' }))}
-        <Link href="/progress" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, padding: '8px 0', color: C.muted, fontSize: 11, fontWeight: 600, textDecoration: 'none', minHeight: 52 }}>
-          <Svg d={ICON.progress} size={22} sw={2.2} />Stats
-        </Link>
-      </div>
     </div>
   );
 }

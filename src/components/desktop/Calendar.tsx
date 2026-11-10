@@ -1,5 +1,4 @@
 'use client';
-import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { DesktopNav } from '../Nav';
@@ -117,14 +116,9 @@ export default function Calendar() {
   return (
     <div style={{ minHeight: '100dvh', background: C.bg, color: C.text, display: 'flex', flexWrap: 'wrap' }}>
     {!phone && <DesktopNav active="Calendar" />}
-    <main style={{ flex: '999 1 560px', minWidth: 0, padding: phone ? '20px 16px 32px' : '32px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <main style={{ flex: '999 1 560px', minWidth: 0, padding: phone ? '20px 16px 130px' : '32px 40px', display: 'flex', flexDirection: 'column', gap: 20 }}>
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-          {phone && (
-            <Link href="/" style={{ height: 40, padding: '0 14px 0 10px', borderRadius: 99, background: C.surface, display: 'flex', alignItems: 'center', gap: 4, color: C.text, textDecoration: 'none', fontSize: 13, fontWeight: 600 }}>
-              <Svg d={ICON.back} size={16} sw={2.4} />Home
-            </Link>
-          )}
           <h1 style={{ margin: 0, fontFamily: HEAD, fontSize: 28 }}>{title}</h1>
           <div style={{ display: 'flex', gap: 6 }}>
             {navBtn(`Previous ${view.toLowerCase()}`, () => step(-1), ICON.back)}

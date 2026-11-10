@@ -12,7 +12,8 @@ import { C } from './ui';
 import { hhmmToMin, minutesOfDay } from '@/lib/time';
 
 const PAGE_FLAG: Record<string, 'Tasks' | 'Notes' | 'Calendar'> = { '/tasks': 'Tasks', '/notes': 'Notes', '/calendar': 'Calendar' };
-const PHONE_TAB: Record<string, string> = { '/tasks': 'Tasks', '/notes': 'Notes', '/progress': 'Progress' };
+/** Which tab is highlighted on each page. Pages without one (Calendar, Settings) still show the bar. */
+const PHONE_TAB: Record<string, string> = { '/': 'Today', '/tasks': 'Tasks', '/notes': 'Notes', '/progress': 'Progress' };
 
 function isTyping(t: EventTarget | null): boolean {
   const el = t as HTMLElement | null;
@@ -136,7 +137,7 @@ export function Shell({ children }: { children: ReactNode }) {
   return (
     <div className={app.phone ? 'phone' : undefined} style={{ minHeight: '100dvh', background: C.bg, color: C.text }}>
       {children}
-      {app.phone && tab && <PhoneTabs active={tab} />}
+      {app.phone && pathname !== '/voice' && <PhoneTabs active={tab} />}
       <CaptureSheet />
       <TaskMenu />
       <Palette />
