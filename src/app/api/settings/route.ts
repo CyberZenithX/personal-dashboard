@@ -76,14 +76,7 @@ async function clean(b: Record<string, unknown>): Promise<Partial<Settings>> {
     if (!t) throw new BadRequest('Evening check-in time must be HH:MM');
     out.eveningTime = t;
   }
-  if (b.timezone !== undefined) {
-    try {
-      new Intl.DateTimeFormat('en-CA', { timeZone: String(b.timezone) });
-      out.timezone = String(b.timezone);
-    } catch {
-      /* unknown time zone: keep the saved one */
-    }
-  }
+  // timezone is fixed to Dubai (see APP_TIMEZONE) and can't be changed
   return out;
 }
 

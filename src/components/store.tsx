@@ -288,12 +288,6 @@ export function AppProvider({ initial, children }: { initial: AppState; children
     }
   }, [flash]);
 
-  // Remember the browser's timezone the first time (or when travelling).
-  useEffect(() => {
-    const browser = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (browser && browser !== initial.settings.timezone) setSettings({ timezone: browser });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const toggleTask = useCallback(
     (id: number) => {

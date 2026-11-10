@@ -5,7 +5,8 @@
  */
 import { sql } from '../src/lib/db';
 import { createEvent, createNote, createTask, setTaskDone } from '../src/lib/ops';
-import { getSettings, saveSettings } from '../src/lib/state';
+import { APP_TIMEZONE } from '../src/lib/settings';
+import { getSettings } from '../src/lib/state';
 import { addDays, weekStart, ymd } from '../src/lib/time';
 
 async function main() {
@@ -17,8 +18,7 @@ async function main() {
   }
   await wipe(force);
 
-  const tz = process.env.SEED_TZ || Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
-  await saveSettings({ timezone: tz });
+  const tz = APP_TIMEZONE;
   const settings = await getSettings();
   const today = ymd(new Date(), tz);
   const c = { settings, today };

@@ -1,5 +1,8 @@
 import type { Settings } from './types';
 
+/** Gulf Standard Time. Every "today", streak, quest and reminder is worked out in this zone. */
+export const APP_TIMEZONE = 'Asia/Dubai';
+
 export const DEFAULT_KEYS: [string, string][] = [
   ['New task', 'T'],
   ['New note', 'N'],
@@ -62,7 +65,7 @@ export const DEFAULT_SETTINGS: Settings = {
   week: 'Mon',
   time: '24h',
   eveningTime: '21:00',
-  timezone: 'UTC'
+  timezone: APP_TIMEZONE
 };
 
 export function mergeSettings(stored: unknown): Settings {
@@ -74,7 +77,9 @@ export function mergeSettings(stored: unknown): Settings {
     flags: { ...DEFAULT_SETTINGS.flags, ...(s.flags ?? {}) },
     keys: Array.isArray(s.keys) && s.keys.length === DEFAULT_KEYS.length ? s.keys : DEFAULT_SETTINGS.keys,
     taskTags: Array.isArray(s.taskTags) ? s.taskTags : DEFAULT_SETTINGS.taskTags,
-    noteTags: Array.isArray(s.noteTags) ? s.noteTags : DEFAULT_SETTINGS.noteTags
+    noteTags: Array.isArray(s.noteTags) ? s.noteTags : DEFAULT_SETTINGS.noteTags,
+    // Daylog always runs on Dubai time (GST, UTC+4), whatever the device or server clock is set to.
+    timezone: APP_TIMEZONE
   };
 }
 

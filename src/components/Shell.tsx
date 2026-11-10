@@ -10,7 +10,7 @@ import { LevelUpScreen, Palette, TaskMenu, Toast } from './Overlays';
 import { Presence, useRouteSettle } from './motion';
 import { useApp } from './store';
 import { C } from './ui';
-import { hhmmToMin, minutesOfDay } from '@/lib/time';
+import { dow, hhmmToMin, minutesOfDay } from '@/lib/time';
 
 const PAGE_FLAG: Record<string, 'Tasks' | 'Notes' | 'Calendar'> = { '/tasks': 'Tasks', '/notes': 'Notes', '/calendar': 'Calendar' };
 /** Which tab is highlighted on each page. Pages without one (Calendar, Settings) still show the bar. */
@@ -96,7 +96,7 @@ function useReminders() {
         );
         if (Date.now() - lastLog > 4 * 3600000) fire(`dl-nudge-${today}-${Math.floor(min / 240)}`, 'Daylog', 'Nothing logged for a while. What’s happening right now?');
       }
-      if (flags.weekly && new Date(now.toLocaleString('en-US', { timeZone: tz })).getDay() === 0 && min >= 18 * 60) {
+      if (flags.weekly && dow(today) === 0 && min >= 18 * 60) {
         fire(`dl-weekly-${today}`, 'Weekly review', 'Take a minute to look back at your week.');
       }
     };
